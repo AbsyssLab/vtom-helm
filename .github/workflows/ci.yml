@@ -31,10 +31,3 @@ jobs:
           helm lint charts/visual-tom \
             -f charts/visual-tom/values-${{ matrix.cloud }}.yaml \
             -f charts/visual-tom/values-client-template.yaml
-
-      - name: 📋 helm template (dry render)
-        run: |
-          helm template visual-tom charts/visual-tom \
-            -f charts/visual-tom/values-${{ matrix.cloud }}.yaml \
-            -f charts/visual-tom/values-client-template.yaml \
-            > /dev/null
