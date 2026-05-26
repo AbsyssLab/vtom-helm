@@ -162,15 +162,29 @@ Transferts de fichiers managés : serveur SFTP entrant + connecteurs sortants ve
 
 Le chart est publié en tant qu'artefact OCI sur GitHub Container Registry. Aucune authentification requise.
 
+**Étape 1 — Récupérer le chart en local** :
 ```bash
-helm install visual-tom oci://ghcr.io/absysslab/visual-tom \
-  --version 0.1.0 \
-  -f values-azure.yaml \
+helm pull oci://ghcr.io/absysslab/visual-tom --version 0.1.0 --untar
+```
+Cette commande télécharge le chart et le dépaquette dans un dossier `visual-tom/` contenant `Chart.yaml`, `values.yaml`, tous les `values-<cloud>.yaml`, le `values-client-template.yaml` et les `templates/`.
+
+**Étape 2 — Préparer votre fichier de valeurs client** :
+```bash
+cp visual-tom/values-client-template.yaml values-monentreprise.yaml
+# Éditer values-monentreprise.yaml et remplir les lignes marquées « # TODO »
+```
+
+**Étape 3 — Installer** :
+```bash
+helm install visual-tom ./visual-tom \
+  -f visual-tom/values-azure.yaml \
   -f values-monentreprise.yaml \
   --namespace vtom --create-namespace
 ```
 
 Remplacer `values-azure.yaml` par `values-aws.yaml`, `values-gcp.yaml` ou `values-onpremise.yaml` selon votre cible.
+
+> **Mises à jour** : pour passer à une version ultérieure (ex. 0.1.1), relancer l'étape 1 avec `--version 0.1.1`, vérifier les changements éventuels dans les `values-<cloud>.yaml`, puis `helm upgrade visual-tom ./visual-tom -f ... -f values-monentreprise.yaml --namespace vtom`.
 
 ## Depuis les sources
 
