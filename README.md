@@ -162,15 +162,29 @@ Managed file transfers: inbound SFTP server + outbound connectors to external ba
 
 The chart is published as an OCI artifact on GitHub Container Registry. No authentication required.
 
+**Step 1 — Pull the chart locally**:
 ```bash
-helm install visual-tom oci://ghcr.io/absysslab/visual-tom \
-  --version 0.1.0 \
-  -f values-azure.yaml \
+helm pull oci://ghcr.io/absysslab/visual-tom --version 0.1.0 --untar
+```
+This downloads the chart and extracts it into a `visual-tom/` directory containing `Chart.yaml`, `values.yaml`, all `values-<cloud>.yaml`, the `values-client-template.yaml` and the `templates/`.
+
+**Step 2 — Prepare your client values file**:
+```bash
+cp visual-tom/values-client-template.yaml values-mycompany.yaml
+# Edit values-mycompany.yaml and fill in the lines marked "# TODO"
+```
+
+**Step 3 — Install**:
+```bash
+helm install visual-tom ./visual-tom \
+  -f visual-tom/values-azure.yaml \
   -f values-mycompany.yaml \
   --namespace vtom --create-namespace
 ```
 
 Replace `values-azure.yaml` with `values-aws.yaml`, `values-gcp.yaml` or `values-onpremise.yaml` according to your target.
+
+> **Upgrades**: to move to a later version (e.g. 0.1.1), re-run step 1 with `--version 0.1.1`, review any changes in the `values-<cloud>.yaml`, then `helm upgrade visual-tom ./visual-tom -f ... -f values-mycompany.yaml --namespace vtom`.
 
 ## From sources
 
