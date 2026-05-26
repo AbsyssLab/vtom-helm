@@ -1,0 +1,28 @@
+{{- if .Values.vtom.enabled }}
+---
+# VTOM ConfigMap — mounted by vtom-server and vtom-apiserver only
+# Variables specific to a single component are set as direct env vars in their deployment:
+#   - vtom-server  : TOM_SERVER_HOST, TOM_PORT_tomDBd
+#   - vtom-agent   : TOM_PORT_sbdaemon
+# Disabled ports (not used in K8s): TOM_PORT_vtserver, TOM_PORT_vtnotifier, TOM_PORT_bdaemon
+# TODO: clarify the purpose of TOM_SERVER_HOST with Absyss
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vtom-config-vtom
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    app.kubernetes.io/name: vtom
+    {{- include "vtom.labels" . | nindent 4 }}
+data:
+  TOM_SSL: "1"
+  # VTOM server hostname — used by the apiserver to connect to it (defaults to localhost if absent)
+  TOM_SERVER_HOST: {{ include "vtom.serverName" . | quote }}
+  TOM_APISERVER_HOST: "apiserver"
+  TOM_APISERVER_PORT: {{ .Values.vtom.ports.apiserver | quote }}
+  TOM_PORT_svtserver: {{ .Values.vtom.ports.svtserver | quote }}
+  TOM_PORT_svtnotifier: {{ .Values.vtom.ports.svtnotifier | quote }}
+  TOM_SGBD_HOST: {{ .Values.database.host | quote }}
+  TOM_SGBD_PORT: {{ .Values.database.port | quote }}
+  TOM_SGBD_DBNAME: {{ .Values.vtom.database.name | quote }}
+{{- end }}

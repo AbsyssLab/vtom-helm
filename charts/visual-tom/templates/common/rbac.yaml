@@ -1,0 +1,37 @@
+{{- if eq .Values.secrets.provider "external-secrets" }}
+---
+# Autorise l'opérateur ESO à créer des tokens pour vtom-sa (Workload Identity)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: eso-token-creator
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    app.kubernetes.io/name: vtom
+    {{- include "vtom.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["serviceaccounts/token"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["serviceaccounts"]
+    verbs: ["get"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: eso-token-creator
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    app.kubernetes.io/name: vtom
+    {{- include "vtom.labels" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: external-secrets
+    namespace: external-secrets
+roleRef:
+  kind: Role
+  name: eso-token-creator
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}

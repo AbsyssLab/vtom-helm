@@ -1,0 +1,23 @@
+{{- if .Values.mft.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mft-pvc
+  namespace: {{ include "vtom.namespace" . }}
+  annotations:
+    helm.sh/resource-policy: keep
+  labels:
+    app.kubernetes.io/name: mft
+    app.kubernetes.io/component: mft
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- $scMft := coalesce .Values.mft.pvc.storageClassName .Values.storageClass.name }}
+  {{- if $scMft }}
+  storageClassName: {{ $scMft }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.mft.pvc.size }}
+{{- end }}

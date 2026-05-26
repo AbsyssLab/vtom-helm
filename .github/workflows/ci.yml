@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  lint-chart:
+    name: 🔍 Lint Helm chart (${{ matrix.cloud }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        cloud: [azure, aws, gcp, onpremise]
+      fail-fast: false
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: ⛵ Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.0
+
+      - name: 🔍 helm lint
+        run: |
+          helm lint charts/visual-tom \
+            -f charts/visual-tom/values-${{ matrix.cloud }}.yaml \
+            -f charts/visual-tom/values-client-template.yaml
+
+      - name: 📋 helm template (dry render)
+        run: |
+          helm template visual-tom charts/visual-tom \
+            -f charts/visual-tom/values-${{ matrix.cloud }}.yaml \
+            -f charts/visual-tom/values-client-template.yaml \
+            > /dev/null

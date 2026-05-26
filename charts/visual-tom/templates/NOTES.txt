@@ -1,0 +1,47 @@
+
+Visual TOM {{ .Chart.AppVersion }} has been deployed in namespace {{ include "vtom.namespace" . }}.
+
+== Verify the deployment ==
+
+  kubectl get pods -n {{ include "vtom.namespace" . }}
+  kubectl get svc -n {{ include "vtom.namespace" . }}
+
+== VTOM Desktop Client (LoadBalancer) ==
+
+  Get the external IP of the server service:
+
+  kubectl get svc {{ include "vtom.serverName" . }} -n {{ include "vtom.namespace" . }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+
+  Ports exposed: {{ .Values.vtom.ports.tomDBd }}, {{ .Values.vtom.ports.svtserver }}, {{ .Values.vtom.ports.svtnotifier }}
+{{- if .Values.vtom.serverService.hostname }}
+
+  ExternalDNS hostname: {{ .Values.vtom.serverService.hostname }}
+{{- end }}
+{{- if .Values.vtom.serverService.loadBalancerIP }}
+
+  Static IP: {{ .Values.vtom.serverService.loadBalancerIP }}
+{{- end }}
+
+== Web interfaces (Ingress) ==
+{{- if .Values.vtom.ingress.host }}
+
+  VTOM:  https://{{ .Values.vtom.ingress.host }}
+{{- end }}
+{{- if and .Values.itc.enabled .Values.itc.ingress.host }}
+
+  ITC:   https://{{ .Values.itc.ingress.host }}
+{{- end }}
+{{- if and .Values.itm.enabled .Values.itm.ingress.host }}
+
+  ITM:   https://{{ .Values.itm.ingress.host }}
+{{- end }}
+{{- if and .Values.mft.enabled .Values.mft.ingress.host }}
+
+  MFT:   https://{{ .Values.mft.ingress.host }}
+{{- end }}
+
+== Troubleshooting ==
+
+  kubectl logs -f deployment/vtom-server -n {{ include "vtom.namespace" . }}
+  kubectl logs -f deployment/vtom-apiserver -n {{ include "vtom.namespace" . }}
+  kubectl describe pod -l app=vtom-server -n {{ include "vtom.namespace" . }}

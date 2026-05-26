@@ -1,0 +1,156 @@
+{{- if .Values.itm.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: itm
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    app.kubernetes.io/name: itm
+    app.kubernetes.io/component: itm
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: itm
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: itm
+        app.kubernetes.io/name: itm
+        app.kubernetes.io/component: itm
+        vtom.io/db-access: "true"
+        {{- include "vtom.workloadIdentityPodLabel" . | nindent 8 }}
+        {{- with .Values.itm.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.itm.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      automountServiceAccountToken: false
+      {{- include "vtom.imagePullSecrets" . | nindent 6 }}
+      securityContext:
+        runAsNonRoot: false  # TODO: activer avec runAsUser quand UID confirmé par Absyss
+        fsGroup: 0
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        {{- include "vtom.sidecar.dbProxy" . | nindent 8 }}
+        {{- if .Values.dbProxy.enabled }}
+        {{- include "vtom.initContainer.waitForDb" . | nindent 8 }}
+        {{- end }}
+        - name: prepare-itm-data
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              mkdir -p /var/lib/absyss/visual-it-messenger/log
+              mkdir -p /var/lib/absyss/visual-it-messenger/license
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "16Mi"
+            limits:
+              cpu: "10m"
+              memory: "16Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: itm-data
+              mountPath: /var/lib/absyss/visual-it-messenger
+      containers:
+        - name: itm
+          image: {{ include "itm.image" . | quote }}
+          imagePullPolicy: {{ .Values.itm.image.pullPolicy }}
+          env:
+            - name: ITDB_HOST
+              value: {{ .Values.database.host | quote }}
+            - name: ITDB_PORT
+              value: {{ .Values.itm.database.port | quote }}
+            - name: ITDB_BASE
+              value: {{ .Values.itm.database.name | quote }}
+            - name: ITDB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.itm.database.secretName }}
+                  key: ITDB_USER
+            # Mot de passe EN CLAIR (ITM ne supporte pas le chiffrement VTOM propriétaire)
+            - name: ITDB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.itm.database.secretName }}
+                  key: ITDB_PASSWORD
+            # ITM écoute en HTTPS sur le port 20080
+            - name: ITM_SERVER_HTTP_MODE
+              value: "ssl"
+            - name: TZ
+              value: {{ .Values.vtom.timezone | quote }}
+          ports:
+            - name: https
+              containerPort: 20080
+              protocol: TCP
+            - name: admin
+              containerPort: 20020
+              protocol: TCP
+          livenessProbe:
+            tcpSocket:
+              port: 20020
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            tcpSocket:
+              port: 20080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+            timeoutSeconds: 5
+          startupProbe:
+            tcpSocket:
+              port: 20080
+            failureThreshold: 30
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.itm.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: itm-data
+              mountPath: /var/lib/absyss/visual-it-messenger
+            - name: itm-license
+              mountPath: /var/lib/absyss/visual-it-messenger/license/{{ .Values.itm.license.secretKey }}
+              subPath: {{ .Values.itm.license.secretKey }}
+              readOnly: true
+      volumes:
+        - name: itm-data
+          persistentVolumeClaim:
+            claimName: itm-pvc
+        - name: itm-license
+          secret:
+            secretName: {{ .Values.itm.license.secretName }}
+            defaultMode: 0440
+      terminationGracePeriodSeconds: 60
+      {{- with .Values.itm.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.itm.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.itm.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

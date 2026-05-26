@@ -1,0 +1,715 @@
+{{- if .Values.networkPolicy.enabled }}
+---
+# Block all inbound traffic by default
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+
+---
+# Block all outbound traffic by default
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-egress
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+
+---
+# Allow outbound DNS for all pods
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-dns
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+
+---
+# vtom-agent sends traffic to vtom-server
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-agent-to-server
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: vtom-agent
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: vtom-server
+      ports:
+        - port: {{ .Values.vtom.ports.tomDBd }}
+          protocol: TCP
+        - port: {{ .Values.vtom.ports.svtserver }}
+          protocol: TCP
+
+---
+# vtom-apiserver sends traffic to vtom-server
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-apiserver-to-server
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: vtom-apiserver
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: vtom-server
+      ports:
+        - port: {{ .Values.vtom.ports.svtserver }}
+          protocol: TCP
+        - port: {{ .Values.vtom.ports.svtnotifier }}
+          protocol: TCP
+
+{{- if .Values.vtom.apiserverExternalEgress.port }}
+---
+# vtom-apiserver sends outbound traffic on dedicated external port
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-apiserver-external-port
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: vtom-apiserver
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: {{ .Values.vtom.apiserverExternalEgress.cidr }}
+      ports:
+        - port: {{ .Values.vtom.apiserverExternalEgress.port }}
+          protocol: TCP
+{{- end }}
+
+---
+# vtom-server sends traffic to vtom-agent
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-server-to-agent
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: vtom-server
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: vtom-agent
+      ports:
+        - port: {{ .Values.vtom.ports.sbdaemon }}
+          protocol: TCP
+
+---
+# Cloud APIs and outbound HTTPS (Key Vault, Secrets Manager, etc.)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-cloud-apis
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - port: 443
+          protocol: TCP
+
+{{- if .Values.vtom.enabled }}
+---
+# vtom-server receives traffic from the agent and the apiserver
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-internal-to-server
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: vtom-server
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: vtom-agent
+      ports:
+        - port: {{ .Values.vtom.ports.tomDBd }}
+          protocol: TCP
+        - port: {{ .Values.vtom.ports.svtserver }}
+          protocol: TCP
+    - from:
+        - podSelector:
+            matchLabels:
+              app: vtom-apiserver
+      ports:
+        - port: {{ .Values.vtom.ports.svtserver }}
+          protocol: TCP
+        - port: {{ .Values.vtom.ports.svtnotifier }}
+          protocol: TCP
+
+---
+# vtom-agent receives traffic from the server
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-server-to-agent
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: vtom-agent
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: vtom-server
+      ports:
+        - port: {{ .Values.vtom.ports.sbdaemon }}
+          protocol: TCP
+
+---
+# vtom-server sends traffic to vtom-apiserver (license registration, monitoring)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-server-to-apiserver
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: vtom-server
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: vtom-apiserver
+      ports:
+        - port: {{ .Values.vtom.ports.apiserver }}
+          protocol: TCP
+
+---
+# vtom-apiserver receives ingress traffic and LB health probes
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-apiserver
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: vtom-apiserver
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - port: {{ .Values.vtom.ports.apiserver }}
+          protocol: TCP
+      from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.ingressNamespace }}
+        - podSelector:
+            matchLabels:
+              app: vtom-server
+        {{- if .Values.itc.enabled }}
+        - podSelector:
+            matchLabels:
+              app: itc
+        {{- end }}
+        {{- range .Values.networkPolicy.lbHealthCheckCidrs }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+        {{- end }}
+        {{- if .Values.networkPolicy.internalCidr }}
+        - ipBlock:
+            cidr: {{ .Values.networkPolicy.internalCidr }}
+        {{- end }}
+
+---
+# vtom-server receives external traffic: LB health probes + Java IHM clients (svtserver + svtnotifier)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-external-to-server
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: vtom-server
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        {{- range .Values.networkPolicy.lbHealthCheckCidrs }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+        {{- end }}
+        {{- if .Values.networkPolicy.internalCidr }}
+        - ipBlock:
+            cidr: {{ .Values.networkPolicy.internalCidr }}
+        {{- end }}
+      ports:
+        - port: {{ .Values.vtom.ports.svtserver }}
+          protocol: TCP
+        - port: {{ .Values.vtom.ports.svtnotifier }}
+          protocol: TCP
+
+---
+# DB egress from server and apiserver
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-database
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      vtom.io/db-access: "true"
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        {{- if .Values.networkPolicy.internalCidr }}
+        - ipBlock:
+            cidr: {{ .Values.networkPolicy.internalCidr }}
+        {{- else }}
+        - ipBlock:
+            cidr: "0.0.0.0/0"
+        {{- end }}
+      ports:
+        - port: 5432
+          protocol: TCP
+{{- end }}
+
+{{- if .Values.itc.enabled }}
+---
+# DB egress from ITC
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-database-itc
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: itc
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        {{- if .Values.networkPolicy.internalCidr }}
+        - ipBlock:
+            cidr: {{ .Values.networkPolicy.internalCidr }}
+        {{- else }}
+        - ipBlock:
+            cidr: "0.0.0.0/0"
+        {{- end }}
+      ports:
+        - port: 5432
+          protocol: TCP
+
+---
+# ITC receives traffic from the ingress
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-itc
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: itc
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - port: 8443
+          protocol: TCP
+      from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.ingressNamespace }}
+        {{- range .Values.networkPolicy.lbHealthCheckCidrs }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+        {{- end }}
+
+---
+# ITC sends requests to vtom-apiserver (port 30002)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-itc-to-apiserver
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: itc
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: vtom-apiserver
+      ports:
+        - port: {{ .Values.vtom.ports.apiserver }}
+          protocol: TCP
+{{- end }}
+
+{{- if .Values.itm.enabled }}
+---
+# DB egress from ITM
+# Note: port 20020 (ITM admin console) is intentionally excluded from allow-ingress rules.
+# It is already blocked by default-deny-ingress. The kubelet liveness probe (tcpSocket:20020)
+# bypasses NetworkPolicies as it runs directly from the node.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-database-itm
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: itm
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        {{- if .Values.networkPolicy.internalCidr }}
+        - ipBlock:
+            cidr: {{ .Values.networkPolicy.internalCidr }}
+        {{- else }}
+        - ipBlock:
+            cidr: "0.0.0.0/0"
+        {{- end }}
+      ports:
+        - port: 5432
+          protocol: TCP
+
+---
+# ITM receives traffic from the ingress and from vtom-server
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-itm
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: itm
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - port: 20080
+          protocol: TCP
+      from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.ingressNamespace }}
+        {{- if .Values.vtom.enabled }}
+        - podSelector:
+            matchLabels:
+              app: vtom-server
+        {{- end }}
+        {{- range .Values.networkPolicy.lbHealthCheckCidrs }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+        {{- end }}
+{{- end }}
+
+{{- if .Values.mft.enabled }}
+---
+# MFT receives traffic from:
+#   - Traefik (HTTPS portal on port 30034)
+#   - vtom-apiserver (configuration push on port 30034)
+#   - vtom-agent (file transfers on 30034 + SFTP 30022)
+#   - LB health probes + internal CIDR (SFTP via mft-sftp LoadBalancer)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-mft
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: mft
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - port: {{ .Values.mft.ports.https }}
+          protocol: TCP
+      from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.ingressNamespace }}
+        {{- if .Values.vtom.enabled }}
+        - podSelector:
+            matchLabels:
+              app: vtom-apiserver
+        - podSelector:
+            matchLabels:
+              app: vtom-agent
+        {{- end }}
+        {{- range .Values.networkPolicy.lbHealthCheckCidrs }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+        {{- end }}
+    - ports:
+        - port: {{ .Values.mft.ports.sftp }}
+          protocol: TCP
+      from:
+        {{- if .Values.vtom.enabled }}
+        - podSelector:
+            matchLabels:
+              app: vtom-agent
+        {{- end }}
+        {{- range .Values.networkPolicy.lbHealthCheckCidrs }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+        {{- end }}
+        {{- if .Values.networkPolicy.internalCidr }}
+        - ipBlock:
+            cidr: {{ .Values.networkPolicy.internalCidr }}
+        {{- end }}
+        {{- range .Values.networkPolicy.sftpExternalCidrs }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+        {{- end }}
+
+{{- if .Values.vtom.enabled }}
+---
+# vtom-apiserver pushes configuration to MFT (port 30034)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-apiserver-to-mft
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: vtom-apiserver
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: mft
+      ports:
+        - port: {{ .Values.mft.ports.https }}
+          protocol: TCP
+
+---
+# vtom-agent triggers file transfers on MFT (HTTPS 30034 + SFTP 30022)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-agent-to-mft
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: vtom-agent
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: mft
+      ports:
+        - port: {{ .Values.mft.ports.https }}
+          protocol: TCP
+        - port: {{ .Values.mft.ports.sftp }}
+          protocol: TCP
+{{- end }}
+
+{{- if .Values.mft.externalEgress }}
+---
+# MFT outbound rules to external storage backends (NFS, S3, FTP, SFTP, ...).
+# Each entry in mft.externalEgress generates one rule.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-mft-storage
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: mft
+  policyTypes:
+    - Egress
+  egress:
+    {{- range .Values.mft.externalEgress }}
+    - to:
+        - ipBlock:
+            cidr: {{ .cidr | quote }}
+      ports:
+        - port: {{ .port }}
+          protocol: {{ .protocol | default "TCP" }}
+    {{- end }}
+{{- end }}
+{{- end }}
+
+{{- if eq ((.Values.dbProxy).type | default "") "cloudsql-proxy" }}
+---
+# GCP Metadata Server — required for Workload Identity (Cloud SQL Auth Proxy + ESO)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-gcp-metadata
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 169.254.169.254/32
+      ports:
+        - port: 80
+          protocol: TCP
+---
+# Cloud SQL Auth Proxy — encrypted tunnel to Cloud SQL on port 3307 (VPC peering private IP)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-cloudsql-proxy
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      vtom.io/db-access: "true"
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: {{ .Values.networkPolicy.cloudsqlCidr | default "172.16.0.0/12" }}
+      ports:
+        - port: 3307
+          protocol: TCP
+{{- end }}
+
+---
+# cert-manager ACME HTTP solver
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-acme-solver
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      acme.cert-manager.io/http01-solver: "true"
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - port: 8089
+          protocol: TCP
+  egress:
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+{{- end }}

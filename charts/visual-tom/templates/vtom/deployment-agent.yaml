@@ -1,0 +1,102 @@
+{{- if .Values.vtom.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vtom-agent
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    app.kubernetes.io/name: vtom
+    app.kubernetes.io/component: agent
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vtom-agent
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: vtom-agent
+        app.kubernetes.io/name: vtom
+        app.kubernetes.io/component: agent
+        {{- with .Values.vtom.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.vtom.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      automountServiceAccountToken: false
+      {{- include "vtom.imagePullSecrets" . | nindent 6 }}
+      securityContext:
+        runAsNonRoot: true
+        {{- if .Values.securityContext.runAsUser }}
+        runAsUser: {{ .Values.securityContext.runAsUser }}
+        {{- end }}
+        fsGroup: 0
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: vtom-agent
+          image: {{ include "vtom.image" . | quote }}
+          imagePullPolicy: {{ .Values.vtom.image.pullPolicy }}
+          args: ["agent"]
+          env:
+            - name: TZ
+              value: {{ .Values.vtom.timezone | quote }}
+            - name: TOM_PORT_sbdaemon
+              value: {{ .Values.vtom.ports.sbdaemon | quote }}
+          ports:
+            - name: sbdaemon
+              containerPort: {{ .Values.vtom.ports.sbdaemon }}
+              protocol: TCP
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.vtom.ports.sbdaemon }}
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            failureThreshold: 3
+            timeoutSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.vtom.ports.sbdaemon }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+            timeoutSeconds: 5
+          startupProbe:
+            tcpSocket:
+              port: {{ .Values.vtom.ports.sbdaemon }}
+            failureThreshold: 30
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.vtom.agentResources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: customer-data
+              mountPath: /var/lib/absyss/visual-tom
+      volumes:
+        - name: customer-data
+          persistentVolumeClaim:
+            claimName: vtom-agent-pvc
+      terminationGracePeriodSeconds: 60
+      {{- with .Values.vtom.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.vtom.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.vtom.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

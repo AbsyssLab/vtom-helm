@@ -1,0 +1,231 @@
+# =============================================================================
+# values-local-minikube-traefik.yaml — Local run on minikube
+#
+# Layer on top of values-onpremise.yaml:
+#   helm install vtom ./helm/vtom \
+#     -f helm/vtom/values-onpremise.yaml \                      ← on-premise/RKE2 profile
+#     -f helm/vtom/values-local-minikube-traefik.yaml \         ← this file
+#     --namespace vtom-local --create-namespace
+#
+# minikube prerequisites:
+#   - Traefik installed (helm install traefik traefik/traefik -n traefik)
+#   - minikube tunnel active (exposes the LoadBalancer on 127.0.0.1)
+#   - IIS stopped or port 80 free (Stop-Service W3SVC)
+#   - Entries in C:\Windows\System32\drivers\etc\hosts:
+#       127.0.0.1  vtom.local vitc.local vitm.local
+#   - Self-signed TLS certificate created (see TLS section below)
+#   - Traefik patched to skip backend self-signed cert verification:
+#       kubectl patch deploy traefik -n traefik --type=json \
+#         -p='[{"op":"add","path":"/spec/template/spec/containers/0/args/-",
+#               "value":"--serversTransport.insecureSkipVerify=true"}]'
+# =============================================================================
+
+# Target Kubernetes namespace — REQUIRED (must match the --namespace of helm install)
+namespace: vtom-local
+
+# -----------------------------------------------------------------------------
+# Registry and image versions — REQUIRED
+# Images loaded locally into minikube (minikube image load ...)
+# -----------------------------------------------------------------------------
+global:
+  imageRegistry: "docker.io"
+  # imagePullSecrets:         # Uncomment if the registry requires authentication
+  # - name: acr-pull-secret
+
+# -----------------------------------------------------------------------------
+# VTOM (server + apiserver + agent)
+# -----------------------------------------------------------------------------
+vtom:
+  enabled: true
+
+  image:
+    repository: "absyss/visual-tom-core"
+    tag: "7.3.2b"
+    pullPolicy: Never   # Local images only — never pull from the registry
+
+  # Internal VTOM server name — must match the VTOM registration
+  # and the license (the license is tied to this name).
+  # DO NOT change even if multiple instances coexist on the cluster:
+  # each instance is in a different namespace, so the K8s FQDN is unique
+  # (e.g.: vtom-server.vtom-client-a.svc.cluster.local).
+  serverName: vtom-server
+
+  # Domain name for the web interface (vtom-apiserver)
+  ingress:
+    host: "vtom.local"
+
+  # VTOM license
+  license:
+    secretName: vtom-license-secret   # Name of the K8s Secret containing the license
+    secretKey: license.register       # Key in the Secret = mounted license file name
+
+  # VTOM database
+  database:
+    name: vtom
+
+  # LoadBalancer Service for the VTOM Desktop Client (TCP ports 30xxx)
+  serverService:
+    # On Azure: internal LB (private IP) by default — defined in values-azure.yaml.
+    # For a PUBLIC LB (tests, internet access): uncomment below.
+    # annotations: {}
+
+    # Restrict allowed IPs — RECOMMENDED in production.
+    # Leaving empty opens access from the entire VNet (internal LB) or internet (public LB).
+    loadBalancerSourceRanges: []
+    # - "10.0.0.0/8"        # Internal network
+    # - "185.1.2.3/32"      # Fixed IP of VTOM Desktop client workstations
+
+# -----------------------------------------------------------------------------
+# ITC (Visual TOM User Portal)
+# -----------------------------------------------------------------------------
+itc:
+  enabled: true
+
+  image:
+    repository: "absyss/visual-tom-user-portal"
+    tag: "7.3.2b"
+    pullPolicy: Never
+
+  ingress:
+    host: "vitc.local"
+
+  # ITC license — reuses the same secret as VTOM by default
+  license:
+    secretName: vtom-license-secret   # Change if the ITC license is in a separate secret
+    secretKey: license.register       # Key in the Secret = mounted license file name
+
+  # ITC database
+  # IMPORTANT: the ITC password is plain-text (ITDB_PASSWORD)
+  database:
+    name: ITCockpits
+
+# -----------------------------------------------------------------------------
+# ITM (Visual IT Messenger)
+# -----------------------------------------------------------------------------
+itm:
+  enabled: true
+
+  image:
+    repository: "absyss/visual-it-messenger"
+    tag: "7.3.2b"
+    pullPolicy: Never
+
+  ingress:
+    host: "vitm.local"
+
+  # ITM license — reuses the same secret as VTOM by default
+  license:
+    secretName: vtom-license-secret   # Change if the ITM license is in a separate secret
+    secretKey: license.register       # Key in the Secret = mounted license file name
+
+  # ITM database
+  # IMPORTANT: the ITM password is plain-text (ITDB_PASSWORD)
+  database:
+    name: ITMessenger
+
+# -----------------------------------------------------------------------------
+# Database — connection
+# Postgres deployed in the cluster via bitnami/postgresql (release: vtom-postgres)
+# -----------------------------------------------------------------------------
+database:
+  host: "vtom-postgres-postgresql"   # K8s Service created by bitnami/postgresql
+  port: "5432"
+  sslMode: "disable"                 # Local Postgres without TLS
+
+# -----------------------------------------------------------------------------
+# Cloud secrets — REQUIRED depending on the provider
+# Fill in ONLY the section matching your cloud.
+# For on-premise, create K8s Secrets manually (see README / DEPLOYMENT).
+# -----------------------------------------------------------------------------
+
+# ── Azure Key Vault ──────────────────────────────────────────────────────────
+# secrets:
+#   azure:
+#     keyVaultUrl: ""   # TODO: e.g.: https://my-keyvault.vault.azure.net
+#     tenantId: ""      # TODO: e.g.: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+#   remoteKeys:
+#     vtomDbPassword: "vtom-db-password"
+#     vtomLicense: "vtom-license-register"
+#     itcDbPassword: "itc-db-password"
+#     itmDbPassword: "itm-db-password"
+#
+# serviceAccount:
+#   azure:
+#     clientId: ""      # TODO: Client ID of the User-Assigned Managed Identity
+
+# ── AWS Secrets Manager ──────────────────────────────────────────────────────
+# secrets:
+#   aws:
+#     region: ""      # TODO: e.g.: eu-west-1
+#   remoteKeys:
+#     vtomDbPassword: "vtom/db-password"
+#     vtomLicense: "vtom/license-register"
+#     itcDbPassword: "vtom/itc-db-password"
+#     itmDbPassword: "vtom/itm-db-password"
+#
+# serviceAccount:
+#   aws:
+#     roleArn: ""     # TODO: e.g.: arn:aws:iam::123456789012:role/vtom-role
+
+# ── GCP Secret Manager ───────────────────────────────────────────────────────
+# secrets:
+#   gcp:
+#     projectId: ""   # TODO: e.g.: my-gcp-project
+#   remoteKeys:
+#     vtomDbPassword: "vtom-db-password"
+#     vtomLicense: "vtom-license-register"
+#     itcDbPassword: "itc-db-password"
+#     itmDbPassword: "itm-db-password"
+#
+# serviceAccount:
+#   gcp:
+#     serviceAccount: ""  # TODO: e.g.: vtom@my-project.iam.gserviceaccount.com
+#
+# dbProxy:
+#   cloudsqlProxy:
+#     instanceConnectionName: ""  # TODO: e.g.: my-project:europe-west1:vtom-postgres
+
+# -----------------------------------------------------------------------------
+# TLS — self-signed certificate (overrides values-onpremise.yaml which uses cert-manager)
+#
+# Generate the certificate (once):
+#   openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+#     -keyout local-tls.key -out local-tls.crt \
+#     -subj "/CN=*.local" \
+#     -addext "subjectAltName=DNS:vtom.local,DNS:vitc.local,DNS:vitm.local"
+#
+# Create the K8s Secret:
+#   kubectl create secret tls vtom-local-tls \
+#     --cert=local-tls.crt --key=local-tls.key \
+#     -n vtom-local
+#
+# Accept the browser warning or import local-tls.crt into
+# the "Trusted Root Certification Authorities" store on Windows.
+# -----------------------------------------------------------------------------
+tls:
+  provider: secret
+  secret:
+    vtom: vtom-local-tls
+    itc: vtom-local-tls
+    itm: vtom-local-tls
+  # certManager:
+  #   clusterIssuer: letsencrypt-prod   # TODO: adjust if your ClusterIssuer has a different name
+  # provider: secret                    # Uncomment to supply your own TLS certificates
+  # secret:
+  #   vtom: vtom-tls-secret             # Name of the K8s TLS Secret for VTOM
+  #   itc: itc-tls-secret               # Name of the K8s TLS Secret for ITC
+  #   itm: itm-tls-secret               # Name of the K8s TLS Secret for ITM
+
+# -----------------------------------------------------------------------------
+# minikube-specific overrides (relative to values-onpremise.yaml)
+# -----------------------------------------------------------------------------
+
+# minikube StorageClass (replaces rancher.io/local-path from values-onpremise.yaml)
+# volumeBindingMode: Immediate required — minikube-hostpath does not support WaitForFirstConsumer
+storageClass:
+  provisioner: k8s.io/minikube-hostpath
+  volumeBindingMode: Immediate
+
+# NetworkPolicy: broadened CIDR for minikube (no defined corporate network)
+networkPolicy:
+  internalCidr: "0.0.0.0/0"

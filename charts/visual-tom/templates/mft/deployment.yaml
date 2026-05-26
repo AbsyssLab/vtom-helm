@@ -1,0 +1,141 @@
+{{- if .Values.mft.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mft
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    app.kubernetes.io/name: mft
+    app.kubernetes.io/component: mft
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mft
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: mft
+        app.kubernetes.io/name: mft
+        app.kubernetes.io/component: mft
+        {{- include "vtom.workloadIdentityPodLabel" . | nindent 8 }}
+        {{- with .Values.mft.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.mft.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      automountServiceAccountToken: false
+      {{- include "vtom.imagePullSecrets" . | nindent 6 }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      {{- if .Values.mft.pvcSeed.enabled }}
+      initContainers:
+        - name: seed-mft-data
+          image: {{ include "mft.image" . | quote }}
+          imagePullPolicy: {{ .Values.mft.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              TARGET="/opt/absyss/visual-tom/mft/data"
+              SOURCE="/opt/absyss/visual-tom/mft/data-default"
+              mkdir -p "$TARGET"
+              cp -rn "$SOURCE"/. "$TARGET"/
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "16Mi"
+            limits:
+              cpu: "10m"
+              memory: "16Mi"
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: {{ .Values.mft.securityContext.readOnlyRootFilesystem }}
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: mft-data
+              mountPath: /opt/absyss/visual-tom/mft/data
+      {{- end }}
+      containers:
+        - name: mft
+          image: {{ include "mft.image" . | quote }}
+          imagePullPolicy: {{ .Values.mft.image.pullPolicy }}
+          env:
+            - name: TZ
+              value: {{ .Values.vtom.timezone | quote }}
+          ports:
+            - name: https
+              containerPort: {{ .Values.mft.ports.https }}
+              protocol: TCP
+            - name: sftp
+              containerPort: {{ .Values.mft.ports.sftp }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.mft.ports.https }}
+              scheme: HTTPS
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.mft.ports.https }}
+              scheme: HTTPS
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+            timeoutSeconds: 5
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.mft.ports.https }}
+              scheme: HTTPS
+            failureThreshold: 30
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.mft.resources | nindent 12 }}
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: {{ .Values.mft.securityContext.readOnlyRootFilesystem }}
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: mft-data
+              mountPath: /opt/absyss/visual-tom/mft/data
+      volumes:
+        - name: mft-data
+          persistentVolumeClaim:
+            claimName: mft-pvc
+      terminationGracePeriodSeconds: 60
+      {{- with .Values.mft.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.mft.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.mft.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

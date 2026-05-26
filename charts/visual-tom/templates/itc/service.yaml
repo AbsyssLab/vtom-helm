@@ -1,0 +1,24 @@
+{{- if .Values.itc.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: itc
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    app.kubernetes.io/name: itc
+    app.kubernetes.io/component: itc
+    {{- include "vtom.labels" . | nindent 4 }}
+  {{- if eq .Values.ingress.className "traefik" }}
+  annotations:
+    traefik.ingress.kubernetes.io/service.serverstransport: {{ include "vtom.namespace" . }}-itc-skip-tls-verify@kubernetescrd
+  {{- end }}
+spec:
+  selector:
+    app: itc
+  ports:
+    - name: https
+      port: 8443
+      targetPort: 8443
+      protocol: TCP
+  type: ClusterIP
+{{- end }}

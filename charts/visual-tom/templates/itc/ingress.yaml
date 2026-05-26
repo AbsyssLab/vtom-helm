@@ -1,0 +1,74 @@
+{{- if and .Values.itc.enabled .Values.ingress.enabled .Values.itc.ingress.host }}
+{{- if eq .Values.tls.provider "cert-manager" }}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: itc-tls-cert
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    app.kubernetes.io/name: itc
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  secretName: itc-tls-secret
+  issuerRef:
+    name: {{ .Values.tls.certManager.clusterIssuer }}
+    kind: ClusterIssuer
+  privateKey:
+    rotationPolicy: Always
+  dnsNames:
+    - {{ .Values.itc.ingress.host | quote }}
+{{- end }}
+
+{{- if eq .Values.ingress.className "traefik" }}
+---
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: itc-skip-tls-verify
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  insecureSkipVerify: true
+{{- end }}
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: itc-ingress
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    app.kubernetes.io/name: itc
+    {{- include "vtom.labels" . | nindent 4 }}
+  annotations:
+    {{- if eq .Values.ingress.className "traefik" }}
+    traefik.ingress.kubernetes.io/service.serversscheme: "https"
+    {{- if .Values.ingress.httpsRedirect }}
+    traefik.ingress.kubernetes.io/router.middlewares: {{ include "vtom.namespace" . }}-redirect-https@kubernetescrd
+    {{- end }}
+    {{- end }}
+    {{- with .Values.itc.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.itc.ingress.host | quote }}
+      secretName: {{ if eq .Values.tls.provider "secret" }}{{ .Values.tls.secret.itc }}{{ else }}itc-tls-secret{{ end }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.itc.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: itc
+                port:
+                  number: 8443
+{{- end }}

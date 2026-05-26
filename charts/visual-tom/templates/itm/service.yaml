@@ -1,0 +1,24 @@
+{{- if .Values.itm.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: itm
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    app.kubernetes.io/name: itm
+    app.kubernetes.io/component: itm
+    {{- include "vtom.labels" . | nindent 4 }}
+  {{- if eq .Values.ingress.className "traefik" }}
+  annotations:
+    traefik.ingress.kubernetes.io/service.serverstransport: {{ include "vtom.namespace" . }}-itm-skip-tls-verify@kubernetescrd
+  {{- end }}
+spec:
+  selector:
+    app: itm
+  ports:
+    - name: https
+      port: 20080
+      targetPort: 20080
+      protocol: TCP
+  type: ClusterIP
+{{- end }}

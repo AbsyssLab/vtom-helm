@@ -1,0 +1,28 @@
+{{- if .Values.mft.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: mft
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    app.kubernetes.io/name: mft
+    app.kubernetes.io/component: mft
+    {{- include "vtom.labels" . | nindent 4 }}
+  {{- if eq .Values.ingress.className "traefik" }}
+  annotations:
+    traefik.ingress.kubernetes.io/service.serverstransport: {{ include "vtom.namespace" . }}-mft-skip-tls-verify@kubernetescrd
+  {{- end }}
+spec:
+  selector:
+    app: mft
+  ports:
+    - name: https
+      port: {{ .Values.mft.ports.https }}
+      targetPort: {{ .Values.mft.ports.https }}
+      protocol: TCP
+    - name: sftp
+      port: {{ .Values.mft.ports.sftp }}
+      targetPort: {{ .Values.mft.ports.sftp }}
+      protocol: TCP
+  type: ClusterIP
+{{- end }}

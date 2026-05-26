@@ -1,0 +1,23 @@
+{{- if .Values.itc.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: itc-pvc
+  namespace: {{ include "vtom.namespace" . }}
+  annotations:
+    helm.sh/resource-policy: keep
+  labels:
+    app.kubernetes.io/name: itc
+    app.kubernetes.io/component: itc
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- $scItc := coalesce .Values.itc.pvc.storageClassName .Values.storageClass.name }}
+  {{- if $scItc }}
+  storageClassName: {{ $scItc }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.itc.pvc.size }}
+{{- end }}

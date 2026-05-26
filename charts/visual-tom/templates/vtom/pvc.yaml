@@ -1,0 +1,70 @@
+{{- if .Values.vtom.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vtom-server-pvc
+  namespace: {{ include "vtom.namespace" . }}
+  annotations:
+    helm.sh/resource-policy: keep
+  labels:
+    app.kubernetes.io/name: vtom
+    app.kubernetes.io/component: server
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- $scServer := coalesce .Values.vtom.serverPvc.storageClassName .Values.storageClass.name }}
+  {{- if $scServer }}
+  storageClassName: {{ $scServer }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.vtom.serverPvc.size }}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vtom-apiserver-pvc
+  namespace: {{ include "vtom.namespace" . }}
+  annotations:
+    helm.sh/resource-policy: keep
+  labels:
+    app.kubernetes.io/name: vtom
+    app.kubernetes.io/component: apiserver
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- $scApiserver := coalesce .Values.vtom.apiserverPvc.storageClassName .Values.storageClass.name }}
+  {{- if $scApiserver }}
+  storageClassName: {{ $scApiserver }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.vtom.apiserverPvc.size }}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vtom-agent-pvc
+  namespace: {{ include "vtom.namespace" . }}
+  annotations:
+    helm.sh/resource-policy: keep
+  labels:
+    app.kubernetes.io/name: vtom
+    app.kubernetes.io/component: agent
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- $scAgent := coalesce .Values.vtom.agentPvc.storageClassName .Values.storageClass.name }}
+  {{- if $scAgent }}
+  storageClassName: {{ $scAgent }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.vtom.agentPvc.size }}
+{{- end }}

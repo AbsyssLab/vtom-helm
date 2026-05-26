@@ -1,0 +1,31 @@
+apiVersion: v2
+name: visual-tom
+description: >
+  Visual TOM (Absyss) deployment on Kubernetes.
+  Optionally includes ITC (Visual TOM User Portal), ITM (Visual IT Messenger)
+  and MFT (Managed File Transfer).
+type: application
+
+# Chart version (follows SemVer). Increment on every chart change.
+version: 0.1.0
+
+# Reference application version (VTOM). ITC, ITM and MFT versions are defined in values.yaml.
+appVersion: "7.3.2c"
+
+keywords:
+  - vtom
+  - visual-tom
+  - absyss
+  - scheduling
+  - workload-automation
+  - mft
+  - itc
+  - itm
+
+home: https://www.absyss.com
+sources:
+  - https://github.com/AbsyssLab/vtom-helm
+
+maintainers:
+  - name: Absyss
+    email: hotline@absyss.com

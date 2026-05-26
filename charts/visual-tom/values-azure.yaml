@@ -1,0 +1,82 @@
+# =============================================================================
+# values-azure.yaml — Azure overrides (AKS)
+#
+# Use alongside values-<client>.yaml:
+#   helm install vtom absyss/vtom \
+#     -f values-azure.yaml \
+#     -f values-client-mycompany.yaml
+# =============================================================================
+
+global:
+  # Override with the client's ACR name: myacr.azurecr.io
+  imageRegistry: ""
+
+storageClass:
+  create: true
+  name: vtom-data
+  provisioner: disk.csi.azure.com
+  parameters:
+    skuName: StandardSSD_LRS   # Use Premium_LRS for I/O-intensive workloads
+  volumeBindingMode: WaitForFirstConsumer
+
+vtom:
+  # Internal Load Balancer by default (private IP in the VNet) — typical for production.
+  # For a public LB (tests, internet access): override with annotations: {} in values-client.yaml
+  serverService:
+    annotations:
+      service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+
+mft:
+  # Internal Load Balancer by default for the SFTP service.
+  # Override with annotations: {} in values-client.yaml to expose SFTP publicly.
+  sftpService:
+    annotations:
+      service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+
+# On Azure with VNet Integration or Private Endpoint, direct connection
+# to PostgreSQL Flexible Server is available without a sidecar proxy.
+# Enable dbProxy only if direct connection is not available.
+dbProxy:
+  enabled: false
+  type: socat
+  socat:
+    # Set to the Azure PostgreSQL server FQDN
+    # e.g.: vtom-postgres.postgres.database.azure.com:5432
+    target: ""
+
+# Direct connection to PostgreSQL (no proxy)
+# host = private or public FQDN of the Azure PostgreSQL server
+database:
+  host: ""   # REQUIRED — e.g.: vtom-postgres.postgres.database.azure.com
+  port: "5432"
+
+secrets:
+  provider: external-secrets
+  azure:
+    keyVaultUrl: ""   # REQUIRED — e.g.: https://my-keyvault.vault.azure.net
+    tenantId: ""      # REQUIRED — e.g.: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+
+serviceAccount:
+  workloadIdentity:
+    enabled: true
+  azure:
+    clientId: ""      # REQUIRED — Client ID of the User-Assigned Managed Identity
+
+ingress:
+  className: traefik
+
+tls:
+  enabled: true
+  provider: cert-manager
+  certManager:
+    clusterIssuer: letsencrypt-prod
+
+securityContext:
+  runAsUser: 1000   # UID of the vtom user in Absyss images
+
+networkPolicy:
+  enabled: true
+  # Azure Load Balancer virtual IP address (health probes)
+  lbHealthCheckCidrs:
+    - "168.63.129.16/32"
+  internalCidr: "10.0.0.0/8"

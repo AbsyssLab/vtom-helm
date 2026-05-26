@@ -1,0 +1,23 @@
+{{- if .Values.itm.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: itm-pvc
+  namespace: {{ include "vtom.namespace" . }}
+  annotations:
+    helm.sh/resource-policy: keep
+  labels:
+    app.kubernetes.io/name: itm
+    app.kubernetes.io/component: itm
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- $scItm := coalesce .Values.itm.pvc.storageClassName .Values.storageClass.name }}
+  {{- if $scItm }}
+  storageClassName: {{ $scItm }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.itm.pvc.size }}
+{{- end }}

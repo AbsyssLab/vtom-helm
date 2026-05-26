@@ -1,0 +1,78 @@
+# =============================================================================
+# values-aws.yaml — AWS overrides (EKS)
+# =============================================================================
+
+storageClass:
+  create: true
+  name: vtom-data
+  provisioner: ebs.csi.aws.com
+  parameters:
+    type: gp3
+  volumeBindingMode: WaitForFirstConsumer
+
+vtom:
+  # Internal NLB by default for VTOM Desktop TCP ports (same scheme as mft.sftpService).
+  # Override with annotations: {} in values-client.yaml for a public NLB.
+  serverService:
+    annotations:
+      service.beta.kubernetes.io/aws-load-balancer-type: "external"
+      service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "ip"
+      service.beta.kubernetes.io/aws-load-balancer-scheme: "internal"
+
+mft:
+  # Internal NLB by default for the SFTP service (private IP within the VPC).
+  # Override with annotations: {} in values-client.yaml to expose SFTP publicly.
+  # Uses the new AWS Load Balancer Controller annotations; switch to
+  # service.beta.kubernetes.io/aws-load-balancer-internal: "true" if using
+  # the legacy in-tree controller.
+  sftpService:
+    annotations:
+      service.beta.kubernetes.io/aws-load-balancer-type: "external"
+      service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "ip"
+      service.beta.kubernetes.io/aws-load-balancer-scheme: "internal"
+
+# On AWS, RDS is directly accessible within the VPC — no proxy needed
+dbProxy:
+  enabled: false
+
+database:
+  host: ""   # REQUIRED — e.g.: vtom.xxxx.eu-west-1.rds.amazonaws.com
+  port: "5432"
+
+secrets:
+  provider: external-secrets
+  aws:
+    region: ""   # REQUIRED — e.g.: eu-west-1
+  remoteKeys:
+    vtomDbPassword: "vtom/db-password"
+    vtomLicense: "vtom/license-register"
+    itcDbPassword: "vtom/itc-db-password"
+    itmDbPassword: "vtom/itm-db-password"
+
+serviceAccount:
+  workloadIdentity:
+    enabled: true
+  aws:
+    roleArn: ""   # REQUIRED — e.g.: arn:aws:iam::123456789012:role/vtom-role
+
+# On EKS, use "alb" if the AWS Load Balancer Controller is installed.
+ingress:
+  className: traefik
+
+tls:
+  enabled: true
+  provider: cert-manager
+  certManager:
+    clusterIssuer: letsencrypt-prod
+
+securityContext:
+  runAsUser: 1000   # UID of the vtom user in Absyss images
+
+networkPolicy:
+  enabled: true
+  # REQUIRED: restrict to the AWS VPC CIDR to limit authorized sources
+  # accessing the NLB/ALB Load Balancer health check ports.
+  # 0.0.0.0/0 opens these ports to all IPs — do not use in production.
+  # Examples: "172.31.0.0/16" (default AWS VPC) or the CIDR defined in your VPC settings.
+  lbHealthCheckCidrs: []  # TODO: add the VPC CIDR (e.g.: ["172.31.0.0/16"]) for NLB health probes
+  internalCidr: "10.0.0.0/8"

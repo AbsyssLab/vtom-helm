@@ -1,0 +1,92 @@
+# PodDisruptionBudget — all VTOM/ITC/ITM components
+#
+# maxUnavailable: 1 with replicas: 1 does not prevent pod eviction during a drain
+# (1 pod unavailable out of 1 = 100% tolerated). The main benefit is to signal intent
+# to cluster operators and ensure sequential eviction ordering across components.
+# The real protection benefit comes if a component moves to replicas > 1.
+
+{{- if and .Values.podDisruptionBudget.enabled .Values.vtom.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: vtom-server-pdb
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    app.kubernetes.io/name: vtom
+    app.kubernetes.io/component: server
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: vtom-server
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: vtom-apiserver-pdb
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    app.kubernetes.io/name: vtom
+    app.kubernetes.io/component: apiserver
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: vtom-apiserver
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: vtom-agent-pdb
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    app.kubernetes.io/name: vtom
+    app.kubernetes.io/component: agent
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: vtom-agent
+{{- end }}
+
+{{- if and .Values.podDisruptionBudget.enabled .Values.itc.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: itc-pdb
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    app.kubernetes.io/name: itc
+    app.kubernetes.io/component: itc
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: itc
+{{- end }}
+
+{{- if and .Values.podDisruptionBudget.enabled .Values.itm.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: itm-pdb
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    app.kubernetes.io/name: itm
+    app.kubernetes.io/component: itm
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: itm
+{{- end }}

@@ -1,0 +1,19 @@
+{{- if .Values.storageClass.create }}
+# StorageClass dédiée VTOM avec reclaimPolicy: Retain
+# Garantit que les PVs (et les données) survivent à la suppression des PVCs.
+# Suppression du PV = action humaine explicite requise (kubectl delete pv <name>)
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ .Values.storageClass.name }}
+  labels:
+    {{- include "vtom.labels" . | nindent 4 }}
+provisioner: {{ .Values.storageClass.provisioner }}
+{{- with .Values.storageClass.parameters }}
+parameters:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+reclaimPolicy: Retain
+volumeBindingMode: {{ .Values.storageClass.volumeBindingMode | default "WaitForFirstConsumer" }}
+allowVolumeExpansion: true
+{{- end }}

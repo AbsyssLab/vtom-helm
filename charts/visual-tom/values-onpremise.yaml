@@ -1,0 +1,46 @@
+# =============================================================================
+# values-onpremise.yaml — On-premise / RKE2 / Minikube overrides
+# =============================================================================
+
+storageClass:
+  create: true
+  name: vtom-data
+  provisioner: rancher.io/local-path   # RKE2 default; replace with "k8s.io/minikube-hostpath" for Minikube
+  parameters: {}
+  volumeBindingMode: WaitForFirstConsumer
+
+# Direct connection to PostgreSQL — no proxy needed
+dbProxy:
+  enabled: false
+
+database:
+  host: ""   # REQUIRED — hostname or IP of the PostgreSQL server
+  port: "5432"
+
+# No ESO on-premise: native K8s Secrets
+# Secrets must be created manually or via an external tool (Vault, SealedSecrets...)
+secrets:
+  provider: kubernetes
+
+serviceAccount:
+  workloadIdentity:
+    enabled: false
+
+ingress:
+  # RKE2 ships with Traefik v3 by default
+  className: traefik
+
+tls:
+  enabled: true
+  provider: cert-manager
+  certManager:
+    clusterIssuer: letsencrypt-prod
+
+securityContext:
+  runAsUser: 1000   # UID of the vtom user in Absyss images
+                    # Leave null on OpenShift (nonroot SCC manages the UID)
+
+networkPolicy:
+  enabled: true
+  lbHealthCheckCidrs: []  # No cloud LB health probes on-premise
+  internalCidr: "10.0.0.0/8"

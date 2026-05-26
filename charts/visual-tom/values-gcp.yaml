@@ -1,0 +1,80 @@
+# =============================================================================
+# values-gcp.yaml — GCP overrides (GKE)
+# =============================================================================
+
+storageClass:
+  create: true
+  name: vtom-data
+  provisioner: pd.csi.storage.gke.io
+  parameters:
+    type: pd-balanced   # Use pd-ssd for I/O-intensive workloads
+  volumeBindingMode: WaitForFirstConsumer
+
+vtom:
+  # Internal Load Balancer by default for VTOM Desktop TCP ports (private IP in the VPC).
+  # Override with annotations: {} in values-client.yaml for a public LB (tests only).
+  serverService:
+    annotations:
+      networking.gke.io/load-balancer-type: "Internal"
+
+mft:
+  # Internal Load Balancer by default for the SFTP service (private IP within the VPC).
+  # Override with annotations: {} in values-client.yaml to expose SFTP publicly.
+  sftpService:
+    annotations:
+      networking.gke.io/load-balancer-type: "Internal"
+
+# On GCP Cloud SQL, the Cloud SQL Auth Proxy is recommended for IAM authentication.
+# It manages the tunnel and credentials automatically via Workload Identity.
+dbProxy:
+  enabled: true
+  type: cloudsql-proxy
+  cloudsqlProxy:
+    # Instance connection name: PROJECT_ID:REGION:INSTANCE_NAME
+    instanceConnectionName: ""   # REQUIRED — e.g.: my-project:europe-west1:vtom-postgres
+
+# With Cloud SQL Auth Proxy, the DB is accessible on localhost:5432
+# SSL disabled on the app side: the proxy handles encryption to Cloud SQL itself
+database:
+  host: "127.0.0.1"
+  port: "5432"
+  sslMode: "disable"
+
+secrets:
+  provider: external-secrets
+  gcp:
+    projectId: ""   # REQUIRED — e.g.: my-gcp-project
+  remoteKeys:
+    vtomDbPassword: "vtom-db-password"
+    vtomLicense: "vtom-license-register"
+    itcDbPassword: "itc-db-password"
+    itmDbPassword: "itm-db-password"
+
+serviceAccount:
+  workloadIdentity:
+    enabled: true
+  gcp:
+    serviceAccount: ""   # REQUIRED — e.g.: vtom@my-project.iam.gserviceaccount.com
+
+ingress:
+  className: traefik  # or "gce" if using the native GCP Ingress
+
+tls:
+  enabled: true
+  provider: cert-manager
+  certManager:
+    clusterIssuer: letsencrypt-prod
+
+securityContext:
+  runAsUser: 1000   # UID of the vtom user in Absyss images
+
+networkPolicy:
+  enabled: true
+  # GCP Internal LB health probe ranges (both ranges must be allowed)
+  lbHealthCheckCidrs:
+    - "130.211.0.0/22"
+    - "35.191.0.0/16"
+  internalCidr: "10.0.0.0/8"
+  # Cloud SQL PSA range (private-ip-range allocated on vpc-vtom).
+  # The default 172.16.0.0/12 is wrong for traditional PSA — Cloud SQL lands in 10.x.x.x.
+  cloudsqlCidr: "10.0.0.0/8"

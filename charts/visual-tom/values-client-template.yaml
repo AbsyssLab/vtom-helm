@@ -1,0 +1,291 @@
+# =============================================================================
+# values-client-template.yaml — COPY and rename to values-<client>.yaml
+#
+# This file contains ONLY the values specific to your deployment.
+# It is layered on top of the chosen cloud profile (values-azure.yaml, etc.)
+#
+# Deployment:
+#   helm install vtom ./helm/vtom \
+#     -f values-azure.yaml \           ← cloud profile (choose the right one)
+#     -f values-mycompany.yaml \       ← this file renamed
+#     --namespace vtom-<client> --create-namespace
+# =============================================================================
+
+# Target Kubernetes namespace — REQUIRED (must match the --namespace of helm install)
+namespace: vtom-
+
+# -----------------------------------------------------------------------------
+# Registry and image versions — REQUIRED
+# -----------------------------------------------------------------------------
+global:
+  imageRegistry: ""   # TODO: e.g.: myacr.azurecr.io  /  registry.mycompany.com
+  # imagePullSecrets:         # Uncomment if the registry requires authentication
+  # - name: acr-pull-secret
+
+# -----------------------------------------------------------------------------
+# VTOM (server + apiserver + agent)
+# -----------------------------------------------------------------------------
+vtom:
+  enabled: true     # Set to false if the VTOM server is outside the cluster
+
+  image:
+    repository: "visual-tom-core"
+    tag: ""         # TODO: VTOM version, e.g.: "7.3.2a"
+
+  # Internal VTOM server name — must match the VTOM registration
+  # and the license (the license is tied to this name).
+  # DO NOT change even if multiple instances coexist on the cluster:
+  # each instance is in a different namespace, so the K8s FQDN is unique
+  # (e.g.: vtom-server.vtom-client-a.svc.cluster.local).
+  serverName: vtom-server
+
+  # Domain name for the web interface (vtom-apiserver)
+  ingress:
+    host: ""        # TODO: e.g.: vtom.mycompany.com
+
+  # VTOM license
+  license:
+    secretName: vtom-license-secret   # Name of the K8s Secret containing the license
+    secretKey: license.register       # Key in the Secret = mounted license file name
+
+  # VTOM database
+  database:
+    name: vtom      # TODO: PostgreSQL VTOM database name (e.g.: vtom, visual_tom)
+
+  # LoadBalancer Service for the VTOM Desktop Client (TCP ports 30xxx)
+  serverService:
+    # Static IP — pre-reserve in your cloud provider to survive LB reprovisioning.
+    # Leave empty to let the cloud assign a dynamic IP.
+    loadBalancerIP: ""  # TODO (optional): e.g.: 10.0.1.50
+
+    # DNS hostname for the LoadBalancer (requires ExternalDNS in the cluster).
+    # Leave empty if DNS is managed manually.
+    hostname: ""        # TODO (optional): e.g.: vtom-tcp.mycompany.com
+
+    # On Azure/AWS/GCP: internal LB by default — defined in values-<cloud>.yaml.
+    # For a PUBLIC LB (tests, internet access): uncomment below.
+    # annotations: {}
+
+    # Restrict allowed IPs — RECOMMENDED in production.
+    # Leaving empty opens access from the entire VNet (internal LB) or internet (public LB).
+    loadBalancerSourceRanges: []
+    # - "10.0.0.0/8"        # Internal network
+    # - "185.1.2.3/32"      # Fixed IP of VTOM Desktop client workstations
+
+  # Pod scheduling constraints (optional) — pin VTOM pods to specific nodes
+  # tolerations:
+  #   - key: "dedicated"
+  #     value: "vtom"
+  #     effect: "NoSchedule"
+  # nodeSelector:
+  #   agentpool: vtom
+  # affinity: {}
+  # Outbound traffic from vtom-apiserver to an external endpoint.
+  # TODO: change only if your external service uses a different TCP port.
+  apiserverExternalEgress:
+    port: ""   # TODO: e.g.: 30034 (leave empty to disable this rule)
+    # TODO: restrict to the target CIDR whenever possible (avoid 0.0.0.0/0 in production).
+    cidr: "0.0.0.0/0"
+
+# -----------------------------------------------------------------------------
+# ITC (Visual TOM User Portal)
+# -----------------------------------------------------------------------------
+itc:
+  enabled: true     # Set to false if ITC is not used
+
+  image:
+    repository: "visual-tom-user-portal"
+    tag: ""         # TODO: ITC version, e.g.: "7.3.2a"
+
+  ingress:
+    host: ""        # TODO: e.g.: vitc.mycompany.com
+
+  # ITC license — reuses the same secret as VTOM by default
+  license:
+    secretName: vtom-license-secret   # Change if the ITC license is in a separate secret
+    secretKey: license.register       # Key in the Secret = mounted license file name
+
+  # ITC database
+  # IMPORTANT: the ITC password is plain-text (ITDB_PASSWORD)
+  database:
+    name: ITCockpits    # TODO: PostgreSQL ITC database name
+
+  # Pod scheduling constraints (optional) — pin ITC pod to specific nodes
+  # tolerations: []
+  # nodeSelector: {}
+  # affinity: {}
+
+# -----------------------------------------------------------------------------
+# ITM (Visual IT Messenger)
+# -----------------------------------------------------------------------------
+itm:
+  enabled: true     # Set to false if ITM is not used
+
+  image:
+    repository: "visual-it-messenger"
+    tag: ""         # TODO: ITM version, e.g.: "7.3.2a"
+
+  ingress:
+    host: ""        # TODO: e.g.: vitm.mycompany.com
+
+  # ITM license — reuses the same secret as VTOM by default
+  license:
+    secretName: vtom-license-secret   # Change if the ITM license is in a separate secret
+    secretKey: license.register       # Key in the Secret = mounted license file name
+
+  # ITM database
+  # IMPORTANT: the ITM password is plain-text (ITDB_PASSWORD)
+  database:
+    name: ITMessenger   # TODO: PostgreSQL ITM database name
+
+  # Pod scheduling constraints (optional) — pin ITM pod to specific nodes
+  # tolerations: []
+  # nodeSelector: {}
+  # affinity: {}
+
+# -----------------------------------------------------------------------------
+# MFT (Visual TOM Managed File Transfer)
+# No database, no license required.
+# -----------------------------------------------------------------------------
+mft:
+  enabled: true     # Set to false if MFT is not used
+
+  image:
+    repository: "visual-tom-mft"
+    tag: ""         # TODO: MFT version, e.g.: "7.3.2a"
+
+  # Web portal hostname (HTTPS via Ingress on port 30034)
+  ingress:
+    host: ""        # TODO: e.g.: mft.mycompany.com
+
+  # External SFTP exposure (LoadBalancer Service on TCP 30022)
+  sftpService:
+    enabled: true   # Set to false to disable external SFTP exposure (in-cluster only)
+
+    # Static IP — pre-reserve in your cloud provider to survive LB reprovisioning.
+    loadBalancerIP: ""  # TODO (optional): e.g.: 10.0.1.51
+
+    # DNS hostname for the LoadBalancer (requires ExternalDNS).
+    hostname: ""        # TODO (optional): e.g.: mft-sftp.mycompany.com
+
+    # On Azure/AWS/GCP: internal LB by default — defined in values-<cloud>.yaml.
+    # For a PUBLIC LB (SFTP exposed to internet): uncomment below.
+    # annotations: {}
+
+    # Restrict allowed IPs — RECOMMENDED in production.
+    # Leaving empty opens access from the entire VNet (internal LB) or internet (public LB).
+    loadBalancerSourceRanges: []
+    # - "10.0.0.0/8"        # Internal network
+    # - "185.1.2.3/32"      # Fixed IP of partner SFTP clients
+
+  # External storage backends reachable from MFT (NFS, S3/Blob, FTP, SFTP, …).
+  # Each entry creates an outbound NetworkPolicy rule. Restrict CIDRs as much as possible.
+  # externalEgress:
+  #   - port: 2049         # NFS server
+  #     protocol: TCP
+  #     cidr: "10.0.5.0/24"
+  #   - port: 443          # S3 / Azure Blob / GCS
+  #     protocol: TCP
+  #     cidr: "0.0.0.0/0"
+
+  # Pod scheduling constraints (optional) — pin MFT pod to specific nodes
+  # tolerations: []
+  # nodeSelector: {}
+  # affinity: {}
+
+# -----------------------------------------------------------------------------
+# Database — connection
+# FQDN or IP of the PostgreSQL 17 server accessible from the cluster.
+# On GCP with Cloud SQL Auth Proxy: leave as 127.0.0.1 (already set in values-gcp.yaml).
+# -----------------------------------------------------------------------------
+database:
+  host: ""          # TODO: e.g.: vtom-postgres.postgres.database.azure.com
+
+# -----------------------------------------------------------------------------
+# Cloud secrets — REQUIRED depending on the provider
+# Fill in ONLY the section matching your cloud.
+# For on-premise, create K8s Secrets manually (see README / DEPLOYMENT).
+# -----------------------------------------------------------------------------
+
+# ── Azure Key Vault ──────────────────────────────────────────────────────────
+secrets:
+  azure:
+    keyVaultUrl: ""   # TODO: e.g.: https://my-keyvault.vault.azure.net
+    tenantId: ""      # TODO: e.g.: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+  # Names of secrets in Key Vault (remoteRef keys) — adjust if yours differ
+  remoteKeys:
+    vtomDbUser: "vtom-db-user"                # TODO: Key Vault secret holding the VTOM DB username
+    vtomDbPassword: "vtom-db-password"        # TODO: Key Vault secret for the VTOM password (VTOM-encrypted)
+    vtomLicense: "vtom-license-register"      # TODO: Key Vault secret for the license
+    itcDbUser: "itc-db-user"                  # TODO: Key Vault secret holding the ITC DB username
+    itcDbPassword: "itc-db-password"          # TODO: Key Vault secret for the ITC password (plain text)
+    itmDbUser: "itm-db-user"                  # TODO: Key Vault secret holding the ITM DB username
+    itmDbPassword: "itm-db-password"          # TODO: Key Vault secret for the ITM password (plain text)
+
+serviceAccount:
+  azure:
+    clientId: ""      # TODO: Client ID of the User-Assigned Managed Identity
+
+# ── AWS Secrets Manager ──────────────────────────────────────────────────────
+# secrets:
+#   aws:
+#     region: ""      # TODO: e.g.: eu-west-1
+#   remoteKeys:
+#     vtomDbUser: "vtom/db-user"
+#     vtomDbPassword: "vtom/db-password"
+#     vtomLicense: "vtom/license-register"
+#     itcDbUser: "vtom/itc-db-user"
+#     itcDbPassword: "vtom/itc-db-password"
+#     itmDbUser: "vtom/itm-db-user"
+#     itmDbPassword: "vtom/itm-db-password"
+#
+# serviceAccount:
+#   aws:
+#     roleArn: ""     # TODO: e.g.: arn:aws:iam::123456789012:role/vtom-role
+
+# ── GCP Secret Manager ───────────────────────────────────────────────────────
+# secrets:
+#   gcp:
+#     projectId: ""   # TODO: e.g.: my-gcp-project
+#   remoteKeys:
+#     vtomDbUser: "vtom-db-user"
+#     vtomDbPassword: "vtom-db-password"
+#     vtomLicense: "vtom-license-register"
+#     itcDbUser: "itc-db-user"
+#     itcDbPassword: "itc-db-password"
+#     itmDbUser: "itm-db-user"
+#     itmDbPassword: "itm-db-password"
+#
+# serviceAccount:
+#   gcp:
+#     serviceAccount: ""  # TODO: e.g.: vtom@my-project.iam.gserviceaccount.com
+#
+# dbProxy:
+#   cloudsqlProxy:
+#     instanceConnectionName: ""  # TODO: e.g.: my-project:europe-west1:vtom-postgres
+#
+# networkPolicy:
+#   # CIDR of the Private Service Access (PSA) range allocated for Cloud SQL in your VPC.
+#   # The NetworkPolicy egress rule for Cloud SQL Proxy (port 3307) is restricted to this range.
+#   # To find it:
+#   #   gcloud compute addresses list --filter="purpose=VPC_PEERING" \
+#   #     --project <your-project> \
+#   #     --format="table(name,address,prefixLength,network)"
+#   # Use ADDRESS/PREFIX_LENGTH of the range bound to your VPC (e.g.: 10.1.0.0/16).
+#   cloudsqlCidr: "10.1.0.0/16"  # TODO: replace with your actual PSA range
+
+# -----------------------------------------------------------------------------
+# TLS
+# cert-manager with Let's Encrypt (default) — requires cert-manager installed
+# and a ClusterIssuer created in the cluster (see README / DEPLOIEMENT).
+# Alternative: provider: secret to supply your own TLS certificates.
+# -----------------------------------------------------------------------------
+tls:
+  certManager:
+    clusterIssuer: letsencrypt-prod   # TODO: adjust if your ClusterIssuer has a different name
+  # provider: secret                  # Uncomment to supply your own TLS certificates
+  # secret:
+  #   vtom: vtom-tls-secret           # Name of the K8s TLS Secret for VTOM
+  #   itc: itc-tls-secret             # Name of the K8s TLS Secret for ITC
+  #   itm: itm-tls-secret             # Name of the K8s TLS Secret for ITM
+

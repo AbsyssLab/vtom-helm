@@ -1,0 +1,43 @@
+{{- if and .Values.mft.enabled .Values.mft.sftpService.enabled }}
+---
+# SFTP service (TCP LoadBalancer — access for external SFTP clients)
+# IMPORTANT: restrict loadBalancerSourceRanges in production
+apiVersion: v1
+kind: Service
+metadata:
+  name: mft-sftp
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    app.kubernetes.io/name: mft
+    app.kubernetes.io/component: mft
+    {{- include "vtom.labels" . | nindent 4 }}
+  {{- with .Values.mft.sftpService.annotations }}
+  annotations:
+    {{- if $.Values.mft.sftpService.hostname }}
+    external-dns.alpha.kubernetes.io/hostname: {{ $.Values.mft.sftpService.hostname | quote }}
+    {{- end }}
+    {{- toYaml . | nindent 4 }}
+  {{- else }}
+  {{- if .Values.mft.sftpService.hostname }}
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: {{ .Values.mft.sftpService.hostname | quote }}
+  {{- end }}
+  {{- end }}
+spec:
+  selector:
+    app: mft
+  ports:
+    - name: sftp
+      port: {{ .Values.mft.ports.sftp }}
+      targetPort: {{ .Values.mft.ports.sftp }}
+      protocol: TCP
+  type: LoadBalancer
+  externalTrafficPolicy: {{ .Values.mft.sftpService.externalTrafficPolicy | default "Local" }}
+  {{- if .Values.mft.sftpService.loadBalancerIP }}
+  loadBalancerIP: {{ .Values.mft.sftpService.loadBalancerIP | quote }}
+  {{- end }}
+  {{- with .Values.mft.sftpService.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}

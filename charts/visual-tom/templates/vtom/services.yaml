@@ -1,0 +1,96 @@
+{{- if .Values.vtom.enabled }}
+---
+# Agent service (internal ClusterIP)
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    app.kubernetes.io/name: vtom
+    app.kubernetes.io/component: agent
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: vtom-agent
+  ports:
+    - name: sbdaemon
+      port: {{ .Values.vtom.ports.sbdaemon }}
+      targetPort: {{ .Values.vtom.ports.sbdaemon }}
+      protocol: TCP
+  type: ClusterIP
+
+---
+# Server service (TCP LoadBalancer — access for VTOM Desktop Client)
+# IMPORTANT: restrict loadBalancerSourceRanges in production
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "vtom.serverName" . }}
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    app.kubernetes.io/name: vtom
+    app.kubernetes.io/component: server
+    {{- include "vtom.labels" . | nindent 4 }}
+  {{- with .Values.vtom.serverService.annotations }}
+  annotations:
+    {{- if $.Values.vtom.serverService.hostname }}
+    external-dns.alpha.kubernetes.io/hostname: {{ $.Values.vtom.serverService.hostname | quote }}
+    {{- end }}
+    {{- toYaml . | nindent 4 }}
+  {{- else }}
+  {{- if .Values.vtom.serverService.hostname }}
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: {{ .Values.vtom.serverService.hostname | quote }}
+  {{- end }}
+  {{- end }}
+spec:
+  selector:
+    app: vtom-server
+  ports:
+    - name: tomdbd
+      port: {{ .Values.vtom.ports.tomDBd }}
+      targetPort: {{ .Values.vtom.ports.tomDBd }}
+      protocol: TCP
+    - name: svtserver
+      port: {{ .Values.vtom.ports.svtserver }}
+      targetPort: {{ .Values.vtom.ports.svtserver }}
+      protocol: TCP
+    - name: svtnotifier
+      port: {{ .Values.vtom.ports.svtnotifier }}
+      targetPort: {{ .Values.vtom.ports.svtnotifier }}
+      protocol: TCP
+  type: LoadBalancer
+  {{- if .Values.vtom.serverService.loadBalancerIP }}
+  loadBalancerIP: {{ .Values.vtom.serverService.loadBalancerIP | quote }}
+  {{- end }}
+  {{- with .Values.vtom.serverService.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+
+---
+# Apiserver service (ClusterIP — traffic via Ingress)
+apiVersion: v1
+kind: Service
+metadata:
+  name: apiserver
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    app.kubernetes.io/name: vtom
+    app.kubernetes.io/component: apiserver
+    {{- include "vtom.labels" . | nindent 4 }}
+  {{- if eq .Values.ingress.className "traefik" }}
+  annotations:
+    traefik.ingress.kubernetes.io/service.serverstransport: {{ include "vtom.namespace" . }}-apiserver-skip-tls-verify@kubernetescrd
+  {{- end }}
+spec:
+  selector:
+    app: vtom-apiserver
+  ports:
+    - name: https
+      port: {{ .Values.vtom.ports.apiserver }}
+      targetPort: {{ .Values.vtom.ports.apiserver }}
+      protocol: TCP
+  type: ClusterIP
+{{- end }}

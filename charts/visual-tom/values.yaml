@@ -1,0 +1,551 @@
+# =============================================================================
+# values.yaml — Default values for the VTOM chart
+#
+# This file documents ALL available variables.
+# Override the required values in a values-<context>.yaml file,
+# then in a values-<client>.yaml file.
+#
+# Azure deployment example:
+#   helm install vtom absyss/vtom \
+#     -f values-azure.yaml \
+#     -f values-client-mycompany.yaml \
+#     --namespace vtom --create-namespace
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Namespace
+# -----------------------------------------------------------------------------
+namespace: vtom
+
+# -----------------------------------------------------------------------------
+# Global images
+# Override global.imageRegistry to point to the client registry.
+# imagePullSecrets are required if the registry is private.
+# -----------------------------------------------------------------------------
+global:
+  # Client registry (e.g.: myacr.azurecr.io, 123456789.dkr.ecr.eu-west-1.amazonaws.com)
+  # Leave empty if images are already in a public or auth-free registry.
+  imageRegistry: ""
+  imagePullSecrets: []
+  # - name: my-registry-secret
+
+# -----------------------------------------------------------------------------
+# VTOM (vtom-server + vtom-apiserver + vtom-agent)
+# All three components share the same image and version.
+# -----------------------------------------------------------------------------
+vtom:
+  enabled: true
+
+  image:
+    # Repository name for the VTOM image (without the registry — see global.imageRegistry)
+    repository: absyss/vtom
+    tag: "7.3.2a"
+    pullPolicy: IfNotPresent
+
+  # Internal VTOM name: hostname of the server pod and name of the K8s server Service.
+  # VTOM registers with this name; the agent calls back the server via this hostname.
+  # ITC connects to vtom-apiserver via this name (+ port 30002).
+  serverName: vtom-server
+
+  # Timezone shared by all VTOM components
+  timezone: "Europe/Paris"
+
+  # VTOM ports (do not change unless instructed by Absyss)
+  ports:
+    tomDBd: 30001
+    svtserver: 30017
+    svtnotifier: 30018
+    sbdaemon: 30014
+    apiserver: 30002
+
+  # LoadBalancer Service for vtom-server (access for VTOM Desktop Client)
+  serverService:
+    # Static IP address for the LoadBalancer.
+    # Pre-reserve an IP in your cloud provider and set it here to survive LB reprovisioning.
+    # Azure: az network public-ip create / az network lb frontend-ip create
+    # AWS:   allocate an Elastic IP and assign to the NLB
+    # GCP:   gcloud compute addresses create --region <region>
+    # Leave empty to let the cloud provider assign a dynamic IP.
+    loadBalancerIP: ""
+    # DNS hostname for the LoadBalancer (requires ExternalDNS installed in the cluster).
+    # ExternalDNS will automatically create/update the DNS record when the LB IP changes.
+    # Leave empty if DNS is managed manually or ExternalDNS is not installed.
+    hostname: ""  # e.g.: vtom-tcp.mycompany.com
+    # IP ranges allowed to connect to the server (VTOM Desktop Clients).
+    # IMPORTANT: leaving empty opens the ports to the entire internet.
+    loadBalancerSourceRanges: []
+    # - "10.0.0.0/8"
+    # - "192.168.0.0/16"
+    annotations: {}
+
+  # VTOM license
+  license:
+    # Name of the K8s Secret containing the license file
+    secretName: vtom-license-secret
+    # Key in the Secret → becomes the mounted file name
+    # The file will be mounted at:
+    #   /opt/absyss/visual-tom/vtom/bin/<secretKey>
+    #   /opt/absyss/visual-tom/license/<secretKey>
+    secretKey: license.register
+
+  # VTOM database
+  # IMPORTANT: TOM_SGBD_PASSWORD must be encrypted in the proprietary VTOM format
+  # (not the plain-text password). Use the VTOM bcrypt tool to obtain it.
+  database:
+    name: vtom
+    # K8s Secret: TOM_SGBD_USER and TOM_SGBD_PASSWORD (password VTOM-encrypted)
+    secretName: vtom-db-secret
+
+  # PVC vtom-server
+  serverPvc:
+    size: 5Gi
+    # Per-component override (optional) — otherwise uses global storageClass.name
+    storageClassName: ""
+
+  # PVC vtom-apiserver
+  apiserverPvc:
+    size: 2Gi
+    storageClassName: ""
+
+  # PVC vtom-agent
+  agentPvc:
+    size: 10Gi  # VTOM job logs — may grow depending on workload
+    storageClassName: ""
+
+  # Resources vtom-server
+  serverResources:
+    requests:
+      cpu: "50m"
+      memory: "128Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+
+  # Resources vtom-apiserver
+  apiserverResources:
+    requests:
+      cpu: "20m"
+      memory: "600Mi"
+    limits:
+      cpu: "500m"
+      memory: "1536Mi"
+
+  # Resources vtom-agent
+  agentResources:
+    requests:
+      cpu: "20m"
+      memory: "64Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+
+  # Ingress vtom-apiserver (web interface)
+  ingress:
+    host: ""  # REQUIRED — e.g.: vtom.mycompany.com
+    # Additional annotations for the Ingress (e.g.: cert-manager, oauth2-proxy...)
+    annotations: {}
+
+  # Additional annotations and labels injected on VTOM pods (server, apiserver, agent)
+  # Useful for monitoring (Datadog, Prometheus), security tooling, etc.
+  podAnnotations: {}
+  # e.g.: ad.datadoghq.com/vtom.check_names: '["vtom"]'
+  podLabels: {}
+
+  # Pod scheduling constraints for VTOM components (server, apiserver, agent)
+  tolerations: []
+  nodeSelector: {}
+  affinity: {}
+  # Dedicated outbound rule for vtom-apiserver (external integration endpoint).
+  apiserverExternalEgress:
+    # Leave empty to disable this dedicated egress rule.
+    port: ""
+    # Destination CIDR allowed for the dedicated outbound rule above.
+    # Keep as narrow as possible in production.
+    cidr: "0.0.0.0/0"
+
+# -----------------------------------------------------------------------------
+# ITC (Visual TOM User Portal)
+# -----------------------------------------------------------------------------
+itc:
+  enabled: true
+
+  image:
+    repository: absyss/itc
+    tag: ""  # REQUIRED if itc.enabled=true
+    pullPolicy: IfNotPresent
+
+  license:
+    # By default ITC reuses the VTOM license (same file)
+    secretName: vtom-license-secret
+    secretKey: license.register
+
+  database:
+    name: ITCockpits
+    port: "5432"
+    # K8s Secret: ITDB_USER and ITDB_PASSWORD (password plain-text — ITC does not support VTOM encryption)
+    secretName: itc-db-secret
+
+  pvc:
+    size: 2Gi
+    storageClassName: ""
+
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "400Mi"
+    limits:
+      cpu: "500m"
+      memory: "1Gi"
+
+  ingress:
+    host: ""  # REQUIRED if itc.enabled=true — e.g.: vitc.mycompany.com
+    annotations: {}
+
+  # Additional annotations and labels injected on the ITC pod
+  podAnnotations: {}
+  podLabels: {}
+
+  # Pod scheduling constraints for ITC
+  tolerations: []
+  nodeSelector: {}
+  affinity: {}
+
+# -----------------------------------------------------------------------------
+# ITM (Visual IT Messenger)
+# -----------------------------------------------------------------------------
+itm:
+  enabled: true
+
+  image:
+    repository: absyss/itm
+    tag: ""  # REQUIRED if itm.enabled=true
+    pullPolicy: IfNotPresent
+
+  license:
+    # By default ITM reuses the VTOM license (same file)
+    secretName: vtom-license-secret
+    secretKey: license.register
+
+  database:
+    name: ITMessenger
+    port: "5432"
+    # K8s Secret: ITDB_USER and ITDB_PASSWORD (password plain-text — ITM does not support VTOM encryption)
+    secretName: itm-db-secret
+
+  pvc:
+    size: 2Gi
+    storageClassName: ""
+
+  resources:
+    requests:
+      cpu: "30m"
+      memory: "300Mi"
+    limits:
+      cpu: "500m"
+      memory: "1Gi"
+
+  ingress:
+    host: ""  # REQUIRED if itm.enabled=true — e.g.: vitm.mycompany.com
+    annotations: {}
+
+  # Additional annotations and labels injected on the ITM pod
+  podAnnotations: {}
+  podLabels: {}
+
+  # Pod scheduling constraints for ITM
+  tolerations: []
+  nodeSelector: {}
+  affinity: {}
+
+# -----------------------------------------------------------------------------
+# MFT (Visual TOM Managed File Transfer)
+# No database, no license. Two ports:
+#   - 30034 (HTTPS portal, served by the pod with self-signed TLS)
+#   - 30022 (SFTP)
+# Two services:
+#   - svc/mft (ClusterIP)             — internal traffic (apiserver, agent, Traefik)
+#   - svc/mft-sftp (LoadBalancer)     — SFTP access for external clients
+# -----------------------------------------------------------------------------
+mft:
+  enabled: true
+
+  image:
+    repository: absyss/visual-tom-mft
+    tag: ""  # REQUIRED if mft.enabled=true
+    pullPolicy: IfNotPresent
+
+  # MFT ports (do not change unless instructed by Absyss)
+  ports:
+    https: 30034
+    sftp: 30022
+
+  # LoadBalancer Service for external SFTP clients (TCP 30022).
+  # Same pattern as vtom.serverService — by default LB is internal on Azure/AWS/GCP
+  # via values-<cloud>.yaml; override annotations: {} for a public LB.
+  sftpService:
+    enabled: true
+    # Static IP for the LoadBalancer.
+    # Pre-reserve an IP in your cloud provider and set it here to survive LB reprovisioning.
+    loadBalancerIP: ""
+    # DNS hostname for the LoadBalancer (requires ExternalDNS).
+    hostname: ""  # e.g.: mft-sftp.mycompany.com
+    # IP ranges allowed to connect to the SFTP port.
+    # IMPORTANT: leaving empty opens the port to the entire internet (public LB).
+    loadBalancerSourceRanges: []
+    # - "10.0.0.0/8"
+    annotations: {}
+    # externalTrafficPolicy controls how the LB routes traffic to the pod.
+    # Local  (default): LB sends traffic only to nodes running the MFT pod.
+    #                   Preserves client source IP. Recommended for single-pod deployments.
+    # Cluster:          All nodes receive traffic; kube-proxy routes with SNAT.
+    #                   Loses source IP. May cause routing issues on GCP pass-through LBs.
+    externalTrafficPolicy: "Local"
+
+  # PVC vtom-mft (local file staging area)
+  pvc:
+    size: 1Gi
+    # Per-component override (optional) — otherwise uses global storageClass.name
+    storageClassName: ""
+  pvcSeed:
+    enabled: true
+
+  # Resources vtom-mft
+  resources:
+    requests:
+      cpu: "30m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "1Gi"
+
+  # Ingress vtom-mft (web portal)
+  ingress:
+    host: ""  # REQUIRED if mft.enabled=true — e.g.: mft.mycompany.com
+    annotations: {}
+
+  # Additional outbound rules from vtom-mft to external storage backends
+  # (NFS, S3/Blob, FTP, SFTP, etc.). Each entry creates an egress NetworkPolicy rule.
+  # Leave empty to disable.
+  externalEgress: []
+  # - port: 2049     # NFS
+  #   protocol: TCP
+  #   cidr: "10.0.0.0/8"
+  # - port: 22       # SFTP backend
+  #   protocol: TCP
+  #   cidr: "10.0.0.0/8"
+  # - port: 443      # S3 / Azure Blob / GCS
+  #   protocol: TCP
+  #   cidr: "0.0.0.0/0"
+
+  # Additional annotations and labels injected on the MFT pod
+  podAnnotations: {}
+  podLabels: {}
+
+  # Pod scheduling constraints for MFT
+  tolerations: []
+  nodeSelector: {}
+  affinity: {}
+
+  securityContext:
+    readOnlyRootFilesystem: true
+
+# -----------------------------------------------------------------------------
+# Database — shared connection
+# Host and port of the PostgreSQL server.
+# With a DB proxy sidecar: host=127.0.0.1 (default)
+# Without proxy sidecar: host = FQDN of the PostgreSQL server
+# -----------------------------------------------------------------------------
+database:
+  host: "127.0.0.1"
+  port: "5432"
+
+# -----------------------------------------------------------------------------
+# Database proxy (sidecar)
+# Creates a local tunnel localhost:5432 → remote PostgreSQL server.
+# Useful when a direct connection is not possible (cloud private network).
+# On GCP with Cloud SQL: use type=cloudsql-proxy
+# On Azure/AWS with direct VNet access: disable (enabled=false)
+# -----------------------------------------------------------------------------
+dbProxy:
+  enabled: false
+  # Proxy type: socat | cloudsql-proxy
+  type: socat
+
+  # Used when type=socat
+  socat:
+    image: alpine/socat:1.8.0.0
+    # Hostname:port of the target PostgreSQL server (e.g.: vtom-postgres.postgres.database.azure.com:5432)
+    target: ""
+    resources:
+      requests:
+        cpu: "10m"
+        memory: "16Mi"
+      limits:
+        cpu: "50m"
+        memory: "32Mi"
+
+  # Used when type=cloudsql-proxy (GCP)
+  cloudsqlProxy:
+    image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.11.0
+    # Instance connection name: PROJECT:REGION:INSTANCE
+    instanceConnectionName: ""
+    resources:
+      requests:
+        cpu: "10m"
+        memory: "32Mi"
+      limits:
+        cpu: "100m"
+        memory: "128Mi"
+
+# -----------------------------------------------------------------------------
+# Secrets management
+# provider: external-secrets → uses External Secrets Operator (cloud)
+# provider: kubernetes       → native K8s Secrets (on-premise, no ESO)
+# -----------------------------------------------------------------------------
+secrets:
+  provider: kubernetes  # external-secrets | kubernetes
+  # Refresh interval for secrets from the cloud provider
+  refreshInterval: "1h"
+
+  # Azure Key Vault configuration (provider=external-secrets, cloud=azure)
+  azure:
+    keyVaultUrl: ""   # e.g.: https://my-keyvault.vault.azure.net
+    tenantId: ""
+
+  # AWS Secrets Manager configuration (provider=external-secrets, cloud=aws)
+  aws:
+    region: ""        # e.g.: eu-west-1
+
+  # GCP Secret Manager configuration (provider=external-secrets, cloud=gcp)
+  gcp:
+    projectId: ""       # e.g.: my-gcp-project
+    clusterLocation: "" # e.g.: europe-west1
+    clusterName: ""     # e.g.: vtom-cluster
+
+  # Secret names in the cloud provider (ESO remoteRef keys)
+  # For Azure Key Vault: secret names (dashes required)
+  # For AWS/GCP: secret names in the corresponding service
+  remoteKeys:
+    vtomDbUser: "vtom-db-user"
+    vtomDbPassword: "vtom-db-password"
+    vtomLicense: "vtom-license-register"
+    itcDbUser: "itc-db-user"
+    itcDbPassword: "itc-db-password"
+    itmDbUser: "itm-db-user"
+    itmDbPassword: "itm-db-password"
+
+# -----------------------------------------------------------------------------
+# Identity / Workload Identity
+# Allows pods to access cloud services (secrets, DB) without static credentials.
+# -----------------------------------------------------------------------------
+serviceAccount:
+  name: vtom-sa    # Kubernetes ServiceAccount name — override if corporate naming policy requires it
+  workloadIdentity:
+    enabled: false
+
+  # Azure Workload Identity
+  azure:
+    clientId: ""      # Client ID of the User-Assigned Managed Identity
+
+  # AWS IRSA (IAM Roles for Service Accounts)
+  aws:
+    roleArn: ""       # e.g.: arn:aws:iam::123456789012:role/vtom-role
+
+  # GCP Workload Identity
+  gcp:
+    serviceAccount: "" # e.g.: vtom@my-project.iam.gserviceaccount.com
+
+# -----------------------------------------------------------------------------
+# Ingress — common configuration
+# -----------------------------------------------------------------------------
+ingress:
+  enabled: true
+  # Ingress class: traefik | alb (AWS) | gce (GCP) | ...
+  className: traefik
+  # Creates a Traefik Middleware for HTTP→HTTPS redirect (only with className: traefik)
+  # Set to false if redirect is handled globally at the Traefik entrypoint level
+  httpsRedirect: true
+
+# -----------------------------------------------------------------------------
+# TLS
+# provider: cert-manager  → cert-manager + ClusterIssuer (Let's Encrypt or other)
+# provider: secret        → certificate supplied by the client in a K8s TLS Secret
+# provider: none          → no TLS managed by the chart (external termination)
+# -----------------------------------------------------------------------------
+tls:
+  enabled: true
+  provider: cert-manager  # cert-manager | secret | none
+
+  certManager:
+    clusterIssuer: letsencrypt-prod
+
+  # Used when provider=secret: names of existing K8s TLS Secrets
+  secret:
+    vtom: ""   # e.g.: vtom-tls-secret
+    itc: ""    # e.g.: itc-tls-secret
+    itm: ""    # e.g.: itm-tls-secret
+    mft: ""    # e.g.: mft-tls-secret
+
+# -----------------------------------------------------------------------------
+# NetworkPolicy
+# -----------------------------------------------------------------------------
+networkPolicy:
+  enabled: true
+  # Namespace of the ingress controller allowed to reach the application pods
+  # traefik (default) | ingress-nginx | other
+  ingressNamespace: traefik
+  # CIDRs allowed for cloud Load Balancer health probes (list — supports multiple ranges)
+  # Azure    : ["168.63.129.16/32"]
+  # AWS      : VPC CIDR (e.g.: ["172.31.0.0/16"]) — do NOT use ["0.0.0.0/0"] in production
+  # GCP      : ["130.211.0.0/22", "35.191.0.0/16"]  (Internal LB uses both probe ranges)
+  # On-prem  : []  (no cloud LB health probes)
+  lbHealthCheckCidrs: []
+  # Internal network CIDR for DB egress (port 5432) and inter-service traffic.
+  # WARNING: 0.0.0.0/0 disables all network filtering on the DB — reserve for test
+  # environments with a public DB. In production, use the VNet/VPC/private network CIDR.
+  internalCidr: "10.0.0.0/8"
+  # Additional CIDRs allowed to reach the MFT SFTP port (30022) from outside the cluster.
+  # Use this to authorize external SFTP clients (e.g.: partner IP ranges).
+  # Leave empty to restrict SFTP to internal/agent access only (production default).
+  # Example: ["203.0.113.0/24", "198.51.100.10/32"]
+  # Test only: ["0.0.0.0/0"]
+  sftpExternalCidrs: []
+
+# -----------------------------------------------------------------------------
+# Pod security context
+# runAsUser: numeric UID required on standard K8s when the image uses a symbolic
+# user (e.g.: USER vtom) — K8s cannot verify runAsNonRoot without a numeric UID.
+# Leave null on OpenShift: the nonroot SCC assigns the UID automatically from the
+# namespace range, avoiding conflicts with a hardcoded UID.
+# Recommended value for VTOM images (server, apiserver, agent): 1000
+# ITC and ITM still run as root — not applicable for now.
+# -----------------------------------------------------------------------------
+securityContext:
+  runAsUser: null
+
+# -----------------------------------------------------------------------------
+# PodDisruptionBudget
+# -----------------------------------------------------------------------------
+podDisruptionBudget:
+  enabled: true
+
+# -----------------------------------------------------------------------------
+# OpenShift
+# Enables OpenShift-specific resources (SCC, Routes).
+# -----------------------------------------------------------------------------
+openshift:
+  enabled: false
+
+# -----------------------------------------------------------------------------
+# Dedicated VTOM StorageClass
+# If create: true, Helm creates a StorageClass with reclaimPolicy: Retain.
+# This ensures PVs survive any PVC deletion (helm or kubectl),
+# requiring an explicit human action to delete the data.
+# Parameters are overridden by values-<provider>.yaml.
+# -----------------------------------------------------------------------------
+storageClass:
+  create: false
+  name: ""             # e.g.: vtom-data
+  provisioner: ""      # e.g.: disk.csi.azure.com
+  parameters: {}
+  volumeBindingMode: WaitForFirstConsumer

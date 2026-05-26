@@ -1,0 +1,135 @@
+{{- if .Values.itc.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: itc
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    app.kubernetes.io/name: itc
+    app.kubernetes.io/component: itc
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: itc
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: itc
+        app.kubernetes.io/name: itc
+        app.kubernetes.io/component: itc
+        vtom.io/db-access: "true"
+        {{- include "vtom.workloadIdentityPodLabel" . | nindent 8 }}
+        {{- with .Values.itc.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.itc.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      automountServiceAccountToken: false
+      {{- include "vtom.imagePullSecrets" . | nindent 6 }}
+      securityContext:
+        runAsNonRoot: false  # TODO: activer avec runAsUser quand UID confirmé par Absyss
+        fsGroup: 0
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        {{- include "vtom.sidecar.dbProxy" . | nindent 8 }}
+        {{- if .Values.dbProxy.enabled }}
+        {{- include "vtom.initContainer.waitForDb" . | nindent 8 }}
+        {{- end }}
+        {{- include "vtom.initContainer.waitForApiserver" . | nindent 8 }}
+      containers:
+        - name: itc
+          image: {{ include "itc.image" . | quote }}
+          imagePullPolicy: {{ .Values.itc.image.pullPolicy }}
+          env:
+            - name: ITDB_HOST
+              value: {{ .Values.database.host | quote }}
+            - name: ITDB_PORT
+              value: {{ .Values.itc.database.port | quote }}
+            - name: ITDB_BASE
+              value: {{ .Values.itc.database.name | quote }}
+            - name: ITDB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.itc.database.secretName }}
+                  key: ITDB_USER
+            # Mot de passe EN CLAIR (ITC ne supporte pas le chiffrement VTOM propriétaire)
+            - name: ITDB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.itc.database.secretName }}
+                  key: ITDB_PASSWORD
+            - name: ITC_HTTP_MODE
+              value: "ssl"
+            - name: TZ
+              value: {{ .Values.vtom.timezone | quote }}
+          ports:
+            - name: https
+              containerPort: 8443
+              protocol: TCP
+          livenessProbe:
+            exec:
+              command:
+                - curl
+                - -f
+                - -k
+                - https://localhost:20014/visual-it/admin/health
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            tcpSocket:
+              port: 8443
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+            timeoutSeconds: 5
+          startupProbe:
+            tcpSocket:
+              port: 8443
+            failureThreshold: 30
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.itc.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: itc-data
+              mountPath: /var/lib/absyss/visual-tom-user-portal
+            - name: itc-license
+              mountPath: /var/lib/absyss/visual-tom-user-portal/license/{{ .Values.itc.license.secretKey }}
+              subPath: {{ .Values.itc.license.secretKey }}
+              readOnly: true
+      volumes:
+        - name: itc-data
+          persistentVolumeClaim:
+            claimName: itc-pvc
+        - name: itc-license
+          secret:
+            secretName: {{ .Values.itc.license.secretName }}
+            defaultMode: 0440
+      terminationGracePeriodSeconds: 60
+      {{- with .Values.itc.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.itc.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.itc.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

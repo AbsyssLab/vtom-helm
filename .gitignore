@@ -1,0 +1,34 @@
+# =============================================================================
+# .gitignore — Visual TOM Helm Chart
+# =============================================================================
+
+# Helm chart build artifacts
+*.tgz
+
+# Client-specific values files
+# `values-client-template.yaml` IS versioned (it's the template).
+# Any other values-client-*.yaml is a real client config and must NOT be committed.
+charts/*/values-client-*.yaml
+!charts/*/values-client-template.yaml
+
+# VTOM license (confidential — must be stored in the cloud secret manager)
+license.register
+
+# draw.io temporary files
+.$*.drawio.bkp
+*.drawio.bkp
+
+# IDE / editor artifacts
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local environment overrides
+.env
+.env.local

@@ -1,0 +1,141 @@
+{{- if .Values.vtom.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vtom-server
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    app.kubernetes.io/name: vtom
+    app.kubernetes.io/component: server
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vtom-server
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: vtom-server
+        app.kubernetes.io/name: vtom
+        app.kubernetes.io/component: server
+        vtom.io/db-access: "true"
+        {{- include "vtom.workloadIdentityPodLabel" . | nindent 8 }}
+        {{- with .Values.vtom.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/vtom/configmap.yaml") . | sha256sum }}
+        {{- with .Values.vtom.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      # hostname = nom du Service K8s server (utilisé par VTOM pour s'auto-enregistrer)
+      hostname: {{ include "vtom.serverName" . }}
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      automountServiceAccountToken: false
+      {{- include "vtom.imagePullSecrets" . | nindent 6 }}
+      securityContext:
+        runAsNonRoot: true
+        {{- if .Values.securityContext.runAsUser }}
+        runAsUser: {{ .Values.securityContext.runAsUser }}
+        {{- end }}
+        fsGroup: 0
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        {{- include "vtom.sidecar.dbProxy" . | nindent 8 }}
+        {{- if .Values.dbProxy.enabled }}
+        {{- include "vtom.initContainer.waitForDb" . | nindent 8 }}
+        {{- end }}
+      containers:
+        - name: vtom-server
+          image: {{ include "vtom.image" . | quote }}
+          imagePullPolicy: {{ .Values.vtom.image.pullPolicy }}
+          args: ["server"]
+          envFrom:
+            - configMapRef:
+                name: vtom-config-vtom
+          env:
+            - name: TZ
+              value: {{ .Values.vtom.timezone | quote }}
+            - name: TOM_PORT_tomDBd
+              value: {{ .Values.vtom.ports.tomDBd | quote }}
+            - name: TOM_SGBD_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.vtom.database.secretName }}
+                  key: TOM_SGBD_USER
+            - name: TOM_SGBD_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.vtom.database.secretName }}
+                  key: TOM_SGBD_PASSWORD
+            - name: PGSSLMODE
+              value: {{ .Values.database.sslMode | default "require" | quote }}
+          ports:
+            - name: tomdbd
+              containerPort: {{ .Values.vtom.ports.tomDBd }}
+              protocol: TCP
+            - name: svtserver
+              containerPort: {{ .Values.vtom.ports.svtserver }}
+              protocol: TCP
+            - name: svtnotifier
+              containerPort: {{ .Values.vtom.ports.svtnotifier }}
+              protocol: TCP
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.vtom.ports.svtserver }}
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            failureThreshold: 3
+            timeoutSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.vtom.ports.svtserver }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+            timeoutSeconds: 5
+          startupProbe:
+            tcpSocket:
+              port: {{ .Values.vtom.ports.svtserver }}
+            failureThreshold: 30
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.vtom.serverResources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: customer-data
+              mountPath: /var/lib/absyss/visual-tom
+            - name: license
+              mountPath: /opt/absyss/visual-tom/vtom/bin/{{ .Values.vtom.license.secretKey }}
+              subPath: {{ .Values.vtom.license.secretKey }}
+              readOnly: true
+      volumes:
+        - name: customer-data
+          persistentVolumeClaim:
+            claimName: vtom-server-pvc
+        - name: license
+          secret:
+            secretName: {{ .Values.vtom.license.secretName }}
+            defaultMode: 0440
+      terminationGracePeriodSeconds: 60
+      {{- with .Values.vtom.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.vtom.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.vtom.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
