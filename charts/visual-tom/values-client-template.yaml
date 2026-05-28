@@ -240,6 +240,15 @@ secrets:
     itcDbPassword: "itc-db-password"          # TODO: Key Vault secret for the ITC password (plain text)
     itmDbUser: "itm-db-user"                  # TODO: Key Vault secret holding the ITM DB username
     itmDbPassword: "itm-db-password"          # TODO: Key Vault secret for the ITM password (plain text)
+    # TLS certificates (Option B only — tls.provider=secret): uncomment and adjust names
+    # vtomTlsCert: "vtom-tls-cert"            # TODO: Key Vault secret for the VTOM certificate chain (PEM)
+    # vtomTlsKey:  "vtom-tls-key"             # TODO: Key Vault secret for the VTOM private key (PEM)
+    # itcTlsCert:  "itc-tls-cert"
+    # itcTlsKey:   "itc-tls-key"
+    # itmTlsCert:  "itm-tls-cert"
+    # itmTlsKey:   "itm-tls-key"
+    # mftTlsCert:  "mft-tls-cert"
+    # mftTlsKey:   "mft-tls-key"
 
 serviceAccount:
   azure:
@@ -257,6 +266,15 @@ serviceAccount:
 #     itcDbPassword: "vtom/itc-db-password"
 #     itmDbUser: "vtom/itm-db-user"
 #     itmDbPassword: "vtom/itm-db-password"
+#     # TLS certificates (Option B only — tls.provider=secret): uncomment and adjust names
+#     # vtomTlsCert: "vtom/tls-cert"          # TODO: SM secret for the VTOM certificate chain (PEM)
+#     # vtomTlsKey:  "vtom/tls-key"           # TODO: SM secret for the VTOM private key (PEM)
+#     # itcTlsCert:  "itc/tls-cert"
+#     # itcTlsKey:   "itc/tls-key"
+#     # itmTlsCert:  "itm/tls-cert"
+#     # itmTlsKey:   "itm/tls-key"
+#     # mftTlsCert:  "mft/tls-cert"
+#     # mftTlsKey:   "mft/tls-key"
 #
 # serviceAccount:
 #   aws:
@@ -274,6 +292,15 @@ serviceAccount:
 #     itcDbPassword: "itc-db-password"
 #     itmDbUser: "itm-db-user"
 #     itmDbPassword: "itm-db-password"
+#     # TLS certificates (Option B only — tls.provider=secret): uncomment and adjust names
+#     # vtomTlsCert: "vtom-tls-cert"          # TODO: SM secret for the VTOM certificate chain (PEM)
+#     # vtomTlsKey:  "vtom-tls-key"           # TODO: SM secret for the VTOM private key (PEM)
+#     # itcTlsCert:  "itc-tls-cert"
+#     # itcTlsKey:   "itc-tls-key"
+#     # itmTlsCert:  "itm-tls-cert"
+#     # itmTlsKey:   "itm-tls-key"
+#     # mftTlsCert:  "mft-tls-cert"
+#     # mftTlsKey:   "mft-tls-key"
 #
 # serviceAccount:
 #   gcp:
@@ -295,16 +322,26 @@ serviceAccount:
 
 # -----------------------------------------------------------------------------
 # TLS
-# cert-manager with Let's Encrypt (default) — requires cert-manager installed
-# and a ClusterIssuer created in the cluster (see README / DEPLOIEMENT).
-# Alternative: provider: secret to supply your own TLS certificates.
+# Option A (default) — cert-manager + Let's Encrypt
+#   Requires cert-manager installed and a ClusterIssuer in the cluster.
+# Option B — client-supplied certificates synced from the cloud secret manager
+#   Requirements: secrets.provider=external-secrets AND tls.provider=secret
+#   The chart creates ExternalSecret resources automatically.
+#   Cloud secrets must contain raw PEM content (no additional base64 encoding):
+#     <name>-cert  -> full certificate chain (.crt)
+#     <name>-key   -> private key (.key)
+# Option C — client-supplied certificates (manual K8s TLS Secret)
+#   Create the K8s TLS Secret manually, then reference its name below.
 # -----------------------------------------------------------------------------
 tls:
   certManager:
     clusterIssuer: letsencrypt-prod   # TODO: adjust if your ClusterIssuer has a different name
-  # provider: secret                  # Uncomment to supply your own TLS certificates
+
+  # Uncomment for Option B or C (client-supplied certificates):
+  # provider: secret
   # secret:
-  #   vtom: vtom-tls-secret           # Name of the K8s TLS Secret for VTOM
-  #   itc: itc-tls-secret             # Name of the K8s TLS Secret for ITC
-  #   itm: itm-tls-secret             # Name of the K8s TLS Secret for ITM
+  #   vtom: "vtom-tls-secret"   # created automatically by ExternalSecret (Option B)
+  #   itc:  "itc-tls-secret"    # or created manually (Option C)
+  #   itm:  "itm-tls-secret"
+  #   mft:  "mft-tls-secret"
 
