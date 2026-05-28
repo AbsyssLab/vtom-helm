@@ -512,13 +512,14 @@ networkPolicy:
   sftpExternalCidrs: []
 
 # -----------------------------------------------------------------------------
-# Pod security context
+# Pod security context — applies to VTOM components only (server, apiserver, agent).
 # runAsUser: numeric UID required on standard K8s when the image uses a symbolic
 # user (e.g.: USER vtom) — K8s cannot verify runAsNonRoot without a numeric UID.
 # Leave null on OpenShift: the nonroot SCC assigns the UID automatically from the
 # namespace range, avoiding conflicts with a hardcoded UID.
-# Recommended value for VTOM images (server, apiserver, agent): 1000
-# ITC and ITM still run as root — not applicable for now.
+# Recommended value for VTOM images (server, apiserver, agent): 1000 (set in values-<cloud>.yaml).
+# ITC, ITM and MFT run under their own hardcoded uid 10001 (absyss) in their templates
+# and ignore this value.
 # -----------------------------------------------------------------------------
 securityContext:
   runAsUser: null

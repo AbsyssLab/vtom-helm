@@ -35,8 +35,10 @@ spec:
       automountServiceAccountToken: false
       {{- include "vtom.imagePullSecrets" . | nindent 6 }}
       securityContext:
-        runAsNonRoot: false  # TODO: activer avec runAsUser quand UID confirmé par Absyss
-        fsGroup: 0
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
         seccompProfile:
           type: RuntimeDefault
       initContainers:
@@ -44,28 +46,6 @@ spec:
         {{- if .Values.dbProxy.enabled }}
         {{- include "vtom.initContainer.waitForDb" . | nindent 8 }}
         {{- end }}
-        - name: prepare-itm-data
-          image: busybox:1.36
-          command:
-            - sh
-            - -c
-            - |
-              mkdir -p /var/lib/absyss/visual-it-messenger/log
-              mkdir -p /var/lib/absyss/visual-it-messenger/license
-          resources:
-            requests:
-              cpu: "10m"
-              memory: "16Mi"
-            limits:
-              cpu: "10m"
-              memory: "16Mi"
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop: ["ALL"]
-          volumeMounts:
-            - name: itm-data
-              mountPath: /var/lib/absyss/visual-it-messenger
       containers:
         - name: itm
           image: {{ include "itm.image" . | quote }}
