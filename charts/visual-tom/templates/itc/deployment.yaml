@@ -113,6 +113,12 @@ spec:
               mountPath: /var/lib/absyss/visual-tom-user-portal/license/{{ .Values.itc.license.secretKey }}
               subPath: {{ .Values.itc.license.secretKey }}
               readOnly: true
+            {{- if include "vtom.licenseProxyConfigMapName" . }}
+            - name: license-proxy
+              mountPath: /var/lib/absyss/visual-tom-user-portal/license/license.config
+              subPath: license.config
+              readOnly: true
+            {{- end }}
       volumes:
         - name: itc-data
           persistentVolumeClaim:
@@ -121,6 +127,11 @@ spec:
           secret:
             secretName: {{ .Values.itc.license.secretName }}
             defaultMode: 0440
+        {{- if include "vtom.licenseProxyConfigMapName" . }}
+        - name: license-proxy
+          configMap:
+            name: {{ include "vtom.licenseProxyConfigMapName" . }}
+        {{- end }}
       terminationGracePeriodSeconds: 60
       {{- with .Values.itc.tolerations }}
       tolerations:

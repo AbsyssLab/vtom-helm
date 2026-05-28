@@ -240,3 +240,13 @@ Workload Identity annotation on the pod depending on the cloud provider.
 azure.workload.identity/use: "true"
 {{- end }}
 {{- end }}
+
+{{/*
+Name of the license proxy ConfigMap, when licenseProxy.host is set.
+Returns an empty string when no proxy is configured.
+*/}}
+{{- define "vtom.licenseProxyConfigMapName" -}}
+{{- if .Values.licenseProxy.host -}}
+{{ include "vtom.name" . }}-license-proxy
+{{- end -}}
+{{- end }}

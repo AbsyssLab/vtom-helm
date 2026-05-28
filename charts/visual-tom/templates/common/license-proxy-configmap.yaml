@@ -1,0 +1,12 @@
+{{- if .Values.licenseProxy.host }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "vtom.licenseProxyConfigMapName" . }}
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    {{- include "vtom.labels" . | nindent 4 }}
+data:
+  license.config: |
+    {"version":"1.2","proxyEnable":true,"proxyHost":{{ .Values.licenseProxy.host | quote }},"proxyPort":{{ .Values.licenseProxy.port }},"proxyUser":{{ if .Values.licenseProxy.user }}{{ .Values.licenseProxy.user | quote }}{{ else }}null{{ end }},"proxyPassword":{{ if .Values.licenseProxy.password }}{{ .Values.licenseProxy.password | quote }}{{ else }}null{{ end }}}
+{{- end }}

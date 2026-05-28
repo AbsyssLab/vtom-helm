@@ -112,6 +112,12 @@ spec:
               mountPath: /var/lib/absyss/visual-it-messenger/license/{{ .Values.itm.license.secretKey }}
               subPath: {{ .Values.itm.license.secretKey }}
               readOnly: true
+            {{- if include "vtom.licenseProxyConfigMapName" . }}
+            - name: license-proxy
+              mountPath: /var/lib/absyss/visual-it-messenger/license/license.config
+              subPath: license.config
+              readOnly: true
+            {{- end }}
       volumes:
         - name: itm-data
           persistentVolumeClaim:
@@ -120,6 +126,11 @@ spec:
           secret:
             secretName: {{ .Values.itm.license.secretName }}
             defaultMode: 0440
+        {{- if include "vtom.licenseProxyConfigMapName" . }}
+        - name: license-proxy
+          configMap:
+            name: {{ include "vtom.licenseProxyConfigMapName" . }}
+        {{- end }}
       terminationGracePeriodSeconds: 60
       {{- with .Values.itm.tolerations }}
       tolerations:
