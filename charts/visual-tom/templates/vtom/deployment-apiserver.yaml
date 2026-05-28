@@ -104,8 +104,15 @@ spec:
           volumeMounts:
             - name: customer-data
               mountPath: /var/lib/absyss/visual-tom
+            # Mount the license secret inside the PVC (customer-data) so the entrypoint
+            # symlink /opt/absyss/visual-tom/license -> /var/lib/absyss/visual-tom/license
+            # works as intended. Mounting under /opt/.../license/ instead would turn that
+            # directory into a non-removable mountpoint, the rm -rf + ln -s would silently
+            # misfire, and license.data / license.diagnostic / license.events written by
+            # the Java code would land on the container rootfs (lost at each restart →
+            # a new License Server "Register instance" every reboot → quota burn).
             - name: license
-              mountPath: /opt/absyss/visual-tom/license/{{ .Values.vtom.license.secretKey }}
+              mountPath: /var/lib/absyss/visual-tom/license/{{ .Values.vtom.license.secretKey }}
               subPath: {{ .Values.vtom.license.secretKey }}
               readOnly: true
       volumes:

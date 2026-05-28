@@ -174,6 +174,9 @@ mft:
 
     # Restrict allowed IPs — RECOMMENDED in production.
     # Leaving empty opens access from the entire VNet (internal LB) or internet (public LB).
+    # IMPORTANT: this only filters at the LoadBalancer level. To also allow the same
+    # external CIDRs through the K8s NetworkPolicy on the MFT pod, mirror them in
+    # networkPolicy.sftpExternalCidrs below. Both layers must allow the traffic.
     loadBalancerSourceRanges: []
     # - "10.0.0.0/8"        # Internal network
     # - "185.1.2.3/32"      # Fixed IP of partner SFTP clients
@@ -192,6 +195,22 @@ mft:
   # tolerations: []
   # nodeSelector: {}
   # affinity: {}
+
+# -----------------------------------------------------------------------------
+# NetworkPolicy
+# Cluster-side firewall on the MFT pod (in addition to the cloud LoadBalancer
+# firewall configured via mft.sftpService.loadBalancerSourceRanges).
+# -----------------------------------------------------------------------------
+networkPolicy:
+  # External CIDRs allowed to reach the MFT SFTP port (30022) at the pod level.
+  # MUST mirror mft.sftpService.loadBalancerSourceRanges for external SFTP clients
+  # to actually reach the pod — both filtering layers apply in series.
+  # With MFT externalTrafficPolicy: Local (default), the pod sees the real client IP,
+  # so list the actual partner CIDRs here.
+  # Leave empty to restrict SFTP to internal/agent traffic only (production default).
+  sftpExternalCidrs: []
+  # - "203.0.113.0/24"      # Partner network A
+  # - "198.51.100.10/32"    # Fixed IP of partner SFTP client
 
 # -----------------------------------------------------------------------------
 # Database — connection

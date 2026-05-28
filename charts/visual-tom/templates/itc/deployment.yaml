@@ -35,8 +35,10 @@ spec:
       automountServiceAccountToken: false
       {{- include "vtom.imagePullSecrets" . | nindent 6 }}
       securityContext:
-        runAsNonRoot: false  # TODO: activer avec runAsUser quand UID confirmé par Absyss
-        fsGroup: 0
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
         seccompProfile:
           type: RuntimeDefault
       initContainers:
