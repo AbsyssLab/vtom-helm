@@ -433,6 +433,16 @@ secrets:
     itcDbPassword: "itc-db-password"
     itmDbUser: "itm-db-user"
     itmDbPassword: "itm-db-password"
+    # TLS certificates (used when tls.provider=secret + secrets.provider=external-secrets)
+    # Each component requires two secrets: one for the certificate chain, one for the private key.
+    vtomTlsCert: "vtom-tls-cert"
+    vtomTlsKey:  "vtom-tls-key"
+    itcTlsCert:  "itc-tls-cert"
+    itcTlsKey:   "itc-tls-key"
+    itmTlsCert:  "itm-tls-cert"
+    itmTlsKey:   "itm-tls-key"
+    mftTlsCert:  "mft-tls-cert"
+    mftTlsKey:   "mft-tls-key"
 
 # -----------------------------------------------------------------------------
 # Identity / Workload Identity
@@ -471,6 +481,14 @@ ingress:
 # provider: cert-manager  → cert-manager + ClusterIssuer (Let's Encrypt or other)
 # provider: secret        → certificate supplied by the client in a K8s TLS Secret
 # provider: none          → no TLS managed by the chart (external termination)
+#
+# provider: secret + secrets.provider: external-secrets
+#   -> the chart automatically creates ExternalSecret resources that sync TLS
+#      certificates from the cloud secret manager (GCP SM / Azure KV / AWS SM).
+#   Store two plain-text PEM secrets per component in your cloud provider:
+#     <name>-cert  -> full certificate chain (.crt)
+#     <name>-key   -> private key (.key)
+#   Secret names are configured via secrets.remoteKeys.*TlsCert / *TlsKey.
 # -----------------------------------------------------------------------------
 tls:
   enabled: true
@@ -479,12 +497,13 @@ tls:
   certManager:
     clusterIssuer: letsencrypt-prod
 
-  # Used when provider=secret: names of existing K8s TLS Secrets
+  # Used when provider=secret: names of the K8s TLS Secrets (created manually or
+  # synced automatically from the cloud provider via ExternalSecret).
   secret:
-    vtom: ""   # e.g.: vtom-tls-secret
-    itc: ""    # e.g.: itc-tls-secret
-    itm: ""    # e.g.: itm-tls-secret
-    mft: ""    # e.g.: mft-tls-secret
+    vtom: "vtom-tls-secret"
+    itc:  "itc-tls-secret"
+    itm:  "itm-tls-secret"
+    mft:  "mft-tls-secret"
 
 # -----------------------------------------------------------------------------
 # NetworkPolicy
