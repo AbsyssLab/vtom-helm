@@ -569,3 +569,17 @@ storageClass:
   provisioner: ""      # e.g.: disk.csi.azure.com
   parameters: {}
   volumeBindingMode: WaitForFirstConsumer
+
+# -----------------------------------------------------------------------------
+# License proxy configuration
+# When licenseProxy.host is set, the chart generates a ConfigMap and mounts
+# license.config in each component (vtom-server, vtom-apiserver, itc, itm),
+# allowing the Absyss Java license client to reach license-ctrl.customer.absyss.com
+# through a corporate HTTP proxy.
+# Leave host empty to disable (no ConfigMap created, no volume mount added).
+# -----------------------------------------------------------------------------
+licenseProxy:
+  host: ""        # e.g.: proxy.corp.example.com
+  port: 3128
+  user: ""        # leave empty if the proxy requires no authentication
+  password: ""    # leave empty if the proxy requires no authentication

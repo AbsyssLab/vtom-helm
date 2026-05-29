@@ -221,6 +221,21 @@ database:
   host: ""          # TODO: e.g.: vtom-postgres.postgres.database.azure.com
 
 # -----------------------------------------------------------------------------
+# License proxy (optional)
+# Required only if the cluster has no direct outbound internet access and must
+# route through an HTTP proxy to reach the Absyss license server
+# (license-ctrl.customer.absyss.com).
+# When host is set, the chart generates a ConfigMap and mounts license.config
+# in vtom-server, vtom-apiserver, itc, and itm.
+# Leave host empty (default) to disable — no ConfigMap is created.
+# -----------------------------------------------------------------------------
+# licenseProxy:
+#   host: ""        # TODO: e.g.: proxy.corp.example.com
+#   port: 3128
+#   user: ""        # leave empty if the proxy requires no authentication
+#   password: ""    # leave empty if the proxy requires no authentication
+
+# -----------------------------------------------------------------------------
 # Cloud secrets — REQUIRED depending on the provider
 # Fill in ONLY the section matching your cloud.
 # For on-premise, create K8s Secrets manually (see README / DEPLOYMENT).
