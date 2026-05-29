@@ -3,12 +3,7 @@
 #
 # This file contains ONLY the values specific to your deployment.
 # It is layered on top of the chosen cloud profile (values-azure.yaml, etc.)
-#
-# Deployment:
-#   helm install vtom ./helm/vtom \
-#     -f values-azure.yaml \           ← cloud profile (choose the right one)
-#     -f values-mycompany.yaml \       ← this file renamed
-#     --namespace vtom-<client> --create-namespace
+# See README.md / README-fr.md for full deployment instructions.
 # =============================================================================
 
 # Target Kubernetes namespace — REQUIRED (must match the --namespace of helm install)
@@ -32,11 +27,11 @@ vtom:
     repository: "visual-tom-core"
     tag: ""         # TODO: VTOM version, e.g.: "7.3.2a"
 
-  # Internal VTOM server name — must match the VTOM registration
-  # and the license (the license is tied to this name).
-  # DO NOT change even if multiple instances coexist on the cluster:
-  # each instance is in a different namespace, so the K8s FQDN is unique
-  # (e.g.: vtom-server.vtom-client-a.svc.cluster.local).
+  # Name sent to agents so they can report job execution status back to the server.
+  # Must be resolvable by the agents — set this to serverService.hostname (or the
+  # LoadBalancer IP if no DNS hostname is assigned). The K8s service name (default
+  # "vtom-server") is only reachable inside the cluster and cannot be used by
+  # external agents.
   serverName: vtom-server
 
   # Domain name for the web interface (vtom-apiserver)
@@ -52,7 +47,8 @@ vtom:
   database:
     name: vtom      # TODO: PostgreSQL VTOM database name (e.g.: vtom, visual_tom)
 
-  # LoadBalancer Service for the VTOM Desktop Client (TCP ports 30xxx)
+  # LoadBalancer Service for external VTOM access (TCP ports 30xxx):
+  # VTOM Desktop Client (IHM Java), external agents returning job status, vtom CLI
   serverService:
     # Static IP — pre-reserve in your cloud provider to survive LB reprovisioning.
     # Leave empty to let the cloud assign a dynamic IP.
@@ -80,12 +76,13 @@ vtom:
   # nodeSelector:
   #   agentpool: vtom
   # affinity: {}
-  # Outbound traffic from vtom-apiserver to an external endpoint.
-  # TODO: change only if your external service uses a different TCP port.
-  apiserverExternalEgress:
-    port: ""   # TODO: e.g.: 30034 (leave empty to disable this rule)
-    # TODO: restrict to the target CIDR whenever possible (avoid 0.0.0.0/0 in production).
-    cidr: "0.0.0.0/0"
+  # Outbound rules from vtom-apiserver to external endpoints (e.g. MFT on a remote cluster).
+  # Each entry creates one egress NetworkPolicy rule. Leave empty (default) to disable.
+  # TODO: restrict cidr to the target subnet whenever possible (avoid 0.0.0.0/0 in production).
+  apiserverExternalEgress: []
+  # - port: 30034       # TODO: port of the target service
+  #   protocol: TCP
+  #   cidr: "10.0.0.0/8"
 
 # -----------------------------------------------------------------------------
 # ITC (Visual TOM User Portal)

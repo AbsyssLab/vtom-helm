@@ -155,13 +155,12 @@ vtom:
   tolerations: []
   nodeSelector: {}
   affinity: {}
-  # Dedicated outbound rule for vtom-apiserver (external integration endpoint).
-  apiserverExternalEgress:
-    # Leave empty to disable this dedicated egress rule.
-    port: ""
-    # Destination CIDR allowed for the dedicated outbound rule above.
-    # Keep as narrow as possible in production.
-    cidr: "0.0.0.0/0"
+  # Outbound rules for vtom-apiserver to external endpoints (e.g. MFT on another cluster).
+  # Each entry creates one egress NetworkPolicy rule. Leave empty to disable.
+  apiserverExternalEgress: []
+  # - port: 30034
+  #   protocol: TCP
+  #   cidr: "10.0.0.0/8"   # restrict to the target CIDR whenever possible
 
 # -----------------------------------------------------------------------------
 # ITC (Visual TOM User Portal)

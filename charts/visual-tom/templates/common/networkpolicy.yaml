@@ -99,13 +99,13 @@ spec:
         - port: {{ .Values.vtom.ports.svtnotifier }}
           protocol: TCP
 
-{{- if .Values.vtom.apiserverExternalEgress.port }}
+{{- if .Values.vtom.apiserverExternalEgress }}
 ---
-# vtom-apiserver sends outbound traffic on dedicated external port
+# vtom-apiserver outbound rules to external endpoints
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-egress-apiserver-external-port
+  name: allow-egress-apiserver-external
   namespace: {{ include "vtom.namespace" . }}
   labels:
     {{- include "vtom.labels" . | nindent 4 }}
@@ -116,12 +116,14 @@ spec:
   policyTypes:
     - Egress
   egress:
+    {{- range .Values.vtom.apiserverExternalEgress }}
     - to:
         - ipBlock:
-            cidr: {{ .Values.vtom.apiserverExternalEgress.cidr }}
+            cidr: {{ .cidr | quote }}
       ports:
-        - port: {{ .Values.vtom.apiserverExternalEgress.port }}
-          protocol: TCP
+        - port: {{ .port }}
+          protocol: {{ .protocol | default "TCP" }}
+    {{- end }}
 {{- end }}
 
 ---
