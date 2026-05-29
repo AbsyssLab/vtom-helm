@@ -43,8 +43,9 @@ vtom:
     pullPolicy: IfNotPresent
 
   # Internal VTOM name: hostname of the server pod and name of the K8s server Service.
-  # VTOM registers with this name; the agent calls back the server via this hostname.
-  # ITC connects to vtom-apiserver via this name (+ port 30002).
+  # Must be a valid DNS label (lowercase, hyphens only — no dots, no FQDN).
+  # Tip: add a "DomainName = mycompany.com" entry in the server's vtom.ini to have VTOM
+  # automatically send "<serverName>.<DomainName>" to agents instead of just serverName.
   serverName: vtom-server
 
   # Timezone shared by all VTOM components
@@ -155,13 +156,12 @@ vtom:
   tolerations: []
   nodeSelector: {}
   affinity: {}
-  # Dedicated outbound rule for vtom-apiserver (external integration endpoint).
-  apiserverExternalEgress:
-    # Leave empty to disable this dedicated egress rule.
-    port: ""
-    # Destination CIDR allowed for the dedicated outbound rule above.
-    # Keep as narrow as possible in production.
-    cidr: "0.0.0.0/0"
+  # Outbound rules for vtom-apiserver to external endpoints (e.g. MFT on another cluster).
+  # Each entry creates one egress NetworkPolicy rule. Leave empty to disable.
+  apiserverExternalEgress: []
+  # - port: 30034
+  #   protocol: TCP
+  #   cidr: "10.0.0.0/8"   # restrict to the target CIDR whenever possible
 
 # -----------------------------------------------------------------------------
 # ITC (Visual TOM User Portal)
