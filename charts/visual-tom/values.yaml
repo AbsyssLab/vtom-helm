@@ -43,8 +43,9 @@ vtom:
     pullPolicy: IfNotPresent
 
   # Internal VTOM name: hostname of the server pod and name of the K8s server Service.
-  # VTOM registers with this name; the agent calls back the server via this hostname.
-  # ITC connects to vtom-apiserver via this name (+ port 30002).
+  # Must be a valid DNS label (lowercase, hyphens only — no dots, no FQDN).
+  # Tip: add a "DomainName = mycompany.com" entry in the server's vtom.ini to have VTOM
+  # automatically send "<serverName>.<DomainName>" to agents instead of just serverName.
   serverName: vtom-server
 
   # Timezone shared by all VTOM components

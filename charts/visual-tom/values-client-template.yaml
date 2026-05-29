@@ -27,11 +27,13 @@ vtom:
     repository: "visual-tom-core"
     tag: ""         # TODO: VTOM version, e.g.: "7.3.2a"
 
-  # Name sent to agents so they can report job execution status back to the server.
-  # Must be resolvable by the agents — set this to serverService.hostname (or the
-  # LoadBalancer IP if no DNS hostname is assigned). The K8s service name (default
-  # "vtom-server") is only reachable inside the cluster and cannot be used by
-  # external agents.
+  # Short hostname of the VTOM server — used as the K8s Service name and pod hostname.
+  # Must be a simple DNS label (lowercase, hyphens only — no dots, no FQDN).
+  # External agents must be able to resolve this name (set it to serverService.hostname
+  # or the LoadBalancer IP if no DNS hostname is assigned). The default K8s service name
+  # "vtom-server" is only reachable inside the cluster.
+  # Tip: add a "DomainName = mycompany.com" entry in the server's vtom.ini to have VTOM
+  # automatically send "<serverName>.<DomainName>" to agents instead of just serverName.
   serverName: vtom-server
 
   # Domain name for the web interface (vtom-apiserver)
