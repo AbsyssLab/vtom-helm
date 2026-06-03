@@ -37,8 +37,10 @@ tls:
     clusterIssuer: letsencrypt-prod
 
 securityContext:
-  runAsUser: 1000   # UID of the vtom user in Absyss images
-                    # Leave null on OpenShift (nonroot SCC manages the UID)
+  runAsUser: 1000   # uid=1000(vtom) — confirmed from running image (kubectl exec id)
+  runAsGroup: 1000  # gid=1000(vtom) — confirmed from running image
+  fsGroup: 1000
+  # Leave all three null on OpenShift (nonroot SCC manages the UID/GID automatically)
 
 networkPolicy:
   enabled: true

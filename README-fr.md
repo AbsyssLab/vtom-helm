@@ -511,6 +511,45 @@ kubectl describe svc vtom-server -n vtom
 # Côté cloud : vérifier annotations et quotas LB
 ```
 
+# Sécurité
+
+## Conformité
+
+Ce chart est conforme aux référentiels suivants :
+
+- **Kubernetes Pod Security Standards (PSS) — profil `restricted`** (tous les pods)
+- **CIS Kubernetes Benchmark — Level 1** (tous les contrôles applicables)
+
+### Contrôles en place
+
+| Contrôle | Détail |
+|---|---|
+| `runAsNonRoot: true` | Tous les pods |
+| `runAsUser` / `runAsGroup` non nuls | uid=1000 / gid=1000 (vtom), uid=10001 (ITC, ITM, MFT) |
+| `fsGroup` non nul | 1000 sur les composants VTOM core ; 10001 sur ITC, ITM, MFT |
+| `allowPrivilegeEscalation: false` | Tous les conteneurs, y compris les init containers et sidecars |
+| `capabilities.drop: ["ALL"]` | Tous les conteneurs, y compris les init containers et sidecars |
+| `seccompProfile: RuntimeDefault` | Tous les pods |
+| `readOnlyRootFilesystem: true` | Init containers et sidecar proxy DB |
+| `automountServiceAccountToken: false` | Tous les pods |
+| NetworkPolicies — deny par défaut | Ingress et egress bloqués par défaut ; règles d'autorisation explicites par composant |
+| Secrets via `secretKeyRef` | Aucune donnée sensible dans les ConfigMaps ou variables d'environnement |
+| `defaultMode: 0440` sur les volumes secrets | Fichiers de licence montés en lecture seule |
+
+### Exception documentée (CIS Level 2)
+
+`readOnlyRootFilesystem` n'est pas activé sur les conteneurs applicatifs principaux (vtom-server, vtom-agent, vtom-apiserver, ITC, ITM). Ces composants écrivent sur leur système de fichiers à l'exécution, ce qui constitue une contrainte image upstream. Ce contrôle est classé **Level 2** dans le CIS Benchmark et son absence est compensée par les contrôles listés ci-dessus.
+
+### Pod Security Admission
+
+Pour appliquer le profil PSS `restricted` au niveau du namespace, ajouter le label suivant à la création du namespace :
+
+```bash
+kubectl label namespace vtom \
+  pod-security.kubernetes.io/enforce=restricted \
+  pod-security.kubernetes.io/warn=restricted
+```
+
 # Licence
 
 Ce projet est sous licence Apache 2.0. Voir le fichier [LICENSE](LICENSE) pour plus de détails.
