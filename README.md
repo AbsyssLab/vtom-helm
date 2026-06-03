@@ -511,6 +511,45 @@ kubectl describe svc vtom-server -n vtom
 # Cloud side: check annotations and LB quotas
 ```
 
+# Security
+
+## Compliance
+
+This chart is compliant with:
+
+- **Kubernetes Pod Security Standards (PSS) — `restricted` profile** (all pods)
+- **CIS Kubernetes Benchmark — Level 1** (all applicable controls)
+
+### Controls in place
+
+| Control | Detail |
+|---|---|
+| `runAsNonRoot: true` | All pods |
+| `runAsUser` / `runAsGroup` non-zero | uid=1000 / gid=1000 (vtom), uid=10001 (ITC, ITM, MFT) |
+| `fsGroup` non-zero | 1000 on VTOM core; 10001 on ITC, ITM, MFT |
+| `allowPrivilegeEscalation: false` | All containers, including init containers and sidecars |
+| `capabilities.drop: ["ALL"]` | All containers, including init containers and sidecars |
+| `seccompProfile: RuntimeDefault` | All pods |
+| `readOnlyRootFilesystem: true` | Init containers and DB proxy sidecar |
+| `automountServiceAccountToken: false` | All pods |
+| NetworkPolicies — default deny | Ingress and egress blocked by default; explicit allow rules per component |
+| Secrets via `secretKeyRef` | No credentials in ConfigMaps or environment variables |
+| Secret volume `defaultMode: 0440` | License files mounted read-only |
+
+### Known exception (CIS Level 2)
+
+`readOnlyRootFilesystem` is not set on the main application containers (vtom-server, vtom-agent, vtom-apiserver, ITC, ITM). These components write to their filesystem at runtime, which is an upstream image constraint. This control is classified **Level 2** in the CIS Benchmark and its absence is compensated by the controls listed above.
+
+### Pod Security Admission
+
+To enforce the `restricted` PSS profile at the namespace level, add the following label when creating the namespace:
+
+```bash
+kubectl label namespace vtom \
+  pod-security.kubernetes.io/enforce=restricted \
+  pod-security.kubernetes.io/warn=restricted
+```
+
 # License
 
 This project is licensed under the Apache 2.0 License — see the [LICENSE](LICENSE) file for details.
