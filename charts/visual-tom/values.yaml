@@ -116,29 +116,29 @@ vtom:
   # Resources vtom-server
   serverResources:
     requests:
-      cpu: "50m"
-      memory: "128Mi"
+      cpu: "250m"
+      memory: "512Mi"
     limits:
       cpu: "1000m"
-      memory: "1Gi"
+      memory: "2Gi"
 
   # Resources vtom-apiserver
   apiserverResources:
     requests:
-      cpu: "20m"
-      memory: "600Mi"
-    limits:
       cpu: "500m"
-      memory: "1536Mi"
+      memory: "1Gi"
+    limits:
+      cpu: "2000m"
+      memory: "4Gi"
 
   # Resources vtom-agent
   agentResources:
     requests:
-      cpu: "20m"
-      memory: "64Mi"
-    limits:
-      cpu: "200m"
+      cpu: "100m"
       memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "2Gi"
 
   # Ingress vtom-apiserver (web interface)
   ingress:
