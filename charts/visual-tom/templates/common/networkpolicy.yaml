@@ -150,6 +150,33 @@ spec:
         - port: {{ .Values.vtom.ports.sbdaemon }}
           protocol: TCP
 
+{{- if .Values.vtom.serverExternalAgentEgress }}
+---
+# vtom-server outbound rules to off-cluster agents (on-premise agents via VPN/peering)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-server-to-external-agents
+  namespace: {{ include "vtom.namespace" . }}
+  labels:
+    {{- include "vtom.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: vtom-server
+  policyTypes:
+    - Egress
+  egress:
+    {{- range .Values.vtom.serverExternalAgentEgress }}
+    - to:
+        - ipBlock:
+            cidr: {{ .cidr | quote }}
+      ports:
+        - port: {{ .port }}
+          protocol: {{ .protocol | default "TCP" }}
+    {{- end }}
+{{- end }}
+
 ---
 # Cloud APIs and outbound HTTPS (Key Vault, Secrets Manager, etc.)
 apiVersion: networking.k8s.io/v1

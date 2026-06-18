@@ -162,6 +162,16 @@ vtom:
   # - port: 30034
   #   protocol: TCP
   #   cidr: "10.0.0.0/8"   # restrict to the target CIDR whenever possible
+  # Outbound rules for vtom-server to off-cluster agents (e.g. on-premise agents reached via VPN/peering).
+  # Ports typically used: 30014 (sbdaemon) and 30010 (secondary agent port).
+  # Each entry creates one egress NetworkPolicy rule. Leave empty to disable.
+  serverExternalAgentEgress: []
+  # - port: 30014
+  #   protocol: TCP
+  #   cidr: "10.0.0.0/8"   # restrict to the agent subnet whenever possible
+  # - port: 30010
+  #   protocol: TCP
+  #   cidr: "10.0.0.0/8"
 
 # -----------------------------------------------------------------------------
 # ITC (Visual TOM User Portal)
