@@ -85,6 +85,16 @@ vtom:
   # - port: 30034       # TODO: port of the target service
   #   protocol: TCP
   #   cidr: "10.0.0.0/8"
+  # Outbound rules from vtom-server to off-cluster agents (on-premise agents reached via VPN/peering).
+  # Each entry creates one egress NetworkPolicy rule. Leave empty (default) to disable.
+  # TODO: restrict cidr to the agent subnet whenever possible (avoid 0.0.0.0/0 in production).
+  serverExternalAgentEgress: []
+  # - port: 30014       # sbdaemon — job submission
+  #   protocol: TCP
+  #   cidr: "10.0.0.0/8"   # TODO: subnet of the external agents
+  # - port: 30010       # TODO: secondary agent port if applicable
+  #   protocol: TCP
+  #   cidr: "10.0.0.0/8"
 
 # -----------------------------------------------------------------------------
 # ITC (Visual TOM User Portal)
