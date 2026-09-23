@@ -44,6 +44,7 @@ secrets:
   provider: external-secrets
   gcp:
     projectId: ""   # REQUIRED — e.g.: my-gcp-project
+    location: ""    # Set to the region (e.g. "europe-west1") when using regional secrets
   remoteKeys:
     vtomDbPassword: "vtom-db-password"
     vtomLicense: "vtom-license-register"
