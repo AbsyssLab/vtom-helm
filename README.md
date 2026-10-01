@@ -347,6 +347,7 @@ The following conventions apply to **all infrastructures** (Azure Key Vault, AWS
 | `itm.ingress.host` | ITM domain | `vitm.mycompany.com` |
 | `dbProxy.cloudsqlProxy.instanceConnectionName` | Cloud SQL instance | `my-project:europe-west1:vtom-postgres` |
 | `secrets.gcp.projectId` | GCP project ID | `my-gcp-project` |
+| `secrets.gcp.location` | Region when using Regional Secrets (leave empty for global secrets) | `europe-west1` |
 | `serviceAccount.gcp.serviceAccount` | GSA linked to the KSA | `vtom@my-project.iam.gserviceaccount.com` |
 
 **Secrets to create in GCP Secret Manager:**

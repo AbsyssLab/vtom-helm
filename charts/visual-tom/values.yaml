@@ -429,6 +429,7 @@ secrets:
   # GCP Secret Manager configuration (provider=external-secrets, cloud=gcp)
   gcp:
     projectId: ""       # e.g.: my-gcp-project
+    location: ""        # Set to the region (e.g. "europe-west1") when using regional secret manager
     clusterLocation: "" # e.g.: europe-west1
     clusterName: ""     # e.g.: vtom-cluster
 
